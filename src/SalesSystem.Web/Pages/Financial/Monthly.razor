@@ -1,0 +1,315 @@
+@page "/financial/monthly"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Relatorio Mensal - SalesSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Relatorio Financeiro Mensal</h3>
+</div>
+
+<AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+<AlertModal Visible="successMessage is not null" Message="@(successMessage ?? "")" Title="Sucesso" Type="success" OnClose="() => successMessage = null" />
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row align-items-end">
+            <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Mes</label>
+                <select class="form-select" @bind="selectedMonth">
+                    @for (int m = 1; m <= 12; m++)
+                    {
+                        var monthVal = m;
+                        <option value="@monthVal">@System.Globalization.CultureInfo.GetCultureInfo("pt-BR").DateTimeFormat.GetMonthName(monthVal)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label fw-semibold">Ano</label>
+                <select class="form-select" @bind="selectedYear">
+                    @for (int y = DateTime.Now.Year - 2; y <= DateTime.Now.Year + 1; y++)
+                    {
+                        <option value="@y">@y</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <button class="btn btn-primary" @onclick="LoadReport">
+                    <i class="bi bi-search me-1"></i> Consultar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (loaded)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-success bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-success fw-bold fs-5">@totalEntradas.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Total Entradas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-danger bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-danger fw-bold fs-5">@totalSaidas.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Total Saidas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-primary bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="@(saldo >= 0 ? "text-primary" : "text-danger") fw-bold fs-5">@saldo.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Saldo</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-info bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-info fw-bold fs-5">@caixaInicial.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Caixa Inicial</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!hasCaixaInicial)
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold">Definir Caixa Inicial do Mes</label>
+                        <input type="number" class="form-control" @bind="caixaInicialValue" min="0" step="0.01" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <button class="btn btn-info text-white" @onclick="AddCaixaInicial" disabled="@savingCaixa">
+                            @if (savingCaixa) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="bi bi-plus-lg me-1"></i> Registrar Caixa Inicial
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @foreach (var group in groupedEntries)
+    {
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-semibold">@GetCategoryDisplayName(group.Key)</h6>
+                <span class="badge @(group.Value.First().Type == "Receita" ? "bg-success" : "bg-danger")">
+                    @group.Value.Sum(e => e.Amount).ToString("C", ptBR)
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Descricao</th>
+                                <th>Tipo</th>
+                                <th class="text-end">Valor</th>
+                                <th>Status</th>
+                                <th>Vencimento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var e in group.Value)
+                            {
+                                <tr>
+                                    <td>@e.Description</td>
+                                    <td>
+                                        <span class="badge @(e.Type == "Receita" ? "bg-success" : "bg-danger")">@e.Type</span>
+                                    </td>
+                                    <td class="text-end @(e.Type == "Receita" ? "text-success" : "text-danger")">
+                                        @e.Amount.ToString("C", ptBR)
+                                    </td>
+                                    <td>
+                                        <span class="badge @GetStatusBadge(e.Status)">@e.Status</span>
+                                    </td>
+                                    <td>@e.DueDate.ToString("dd/MM/yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!entries.Any())
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center text-muted py-4">
+                Nenhum lancamento encontrado para o periodo selecionado.
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private int selectedMonth = DateTime.Now.Month;
+    private int selectedYear = DateTime.Now.Year;
+    private bool loading;
+    private bool loaded;
+    private string? errorMessage;
+    private string? successMessage;
+    private List<FinancialEntryDto> entries = [];
+    private Dictionary<string, List<FinancialEntryDto>> groupedEntries = new();
+    private decimal totalEntradas;
+    private decimal totalSaidas;
+    private decimal saldo;
+    private decimal caixaInicial;
+    private bool hasCaixaInicial;
+    private decimal caixaInicialValue;
+    private bool savingCaixa;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadReport();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadReport()
+    {
+        loading = true;
+        loaded = false;
+        errorMessage = null;
+
+        try
+        {
+            var from = new DateTime(selectedYear, selectedMonth, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            entries = await Api.GetAsync<List<FinancialEntryDto>>($"api/financial?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}") ?? [];
+
+            totalEntradas = entries.Where(e => e.Type == "Receita").Sum(e => e.Amount);
+            totalSaidas = entries.Where(e => e.Type == "Despesa").Sum(e => e.Amount);
+            saldo = totalEntradas - totalSaidas;
+
+            var caixaEntries = entries.Where(e => e.Category == "CaixaInicial").ToList();
+            hasCaixaInicial = caixaEntries.Any();
+            caixaInicial = caixaEntries.Sum(e => e.Amount);
+
+            groupedEntries = entries
+                .GroupBy(e => e.Category)
+                .OrderBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.OrderBy(e => e.DueDate).ToList());
+
+            loaded = true;
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar relatorio mensal.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task AddCaixaInicial()
+    {
+        if (caixaInicialValue <= 0)
+        {
+            errorMessage = "O valor do caixa inicial deve ser maior que zero.";
+            return;
+        }
+
+        savingCaixa = true;
+        errorMessage = null;
+
+        try
+        {
+            var from = new DateTime(selectedYear, selectedMonth, 1);
+            var payload = new
+            {
+                Type = 0, // Receita
+                Category = 9, // CaixaInicial
+                Description = $"Caixa Inicial - {ptBR.DateTimeFormat.GetMonthName(selectedMonth)}/{selectedYear}",
+                Amount = caixaInicialValue,
+                AmountDue = 0m,
+                DueDate = from,
+                PaymentDate = from,
+                AmountPaid = caixaInicialValue,
+                Status = 1 // Pago
+            };
+
+            var result = await Api.PostAsync<object, FinancialResultDto>("api/financial", payload);
+            if (result is not null)
+            {
+                successMessage = "Caixa inicial registrado com sucesso!";
+                await LoadReport();
+            }
+            else
+            {
+                errorMessage = "Erro ao registrar caixa inicial.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao registrar caixa inicial.";
+        }
+        finally
+        {
+            savingCaixa = false;
+        }
+    }
+
+    private string GetCategoryDisplayName(string category) => category switch
+    {
+        "Venda" => "Vendas",
+        "Compra" => "Compras",
+        "FolhaPagamento" => "Folha de Pagamento",
+        "Aluguel" => "Aluguel",
+        "Imposto" => "Impostos",
+        "Servico" => "Servicos",
+        "Marketing" => "Marketing",
+        "Logistica" => "Logistica",
+        "CaixaInicial" => "Caixa Inicial",
+        "Gasolina" => "Gasolina",
+        "AporteFinanceiro" => "Aporte Financeiro",
+        "Outro" => "Outros",
+        _ => category
+    };
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Pendente" => "bg-warning text-dark",
+        "Pago" => "bg-success",
+        "Vencido" => "bg-danger",
+        "Cancelado" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    public class FinancialEntryDto
+    {
+        public string Id { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Category { get; set; } = "";
+        public decimal Amount { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime DueDate { get; set; }
+    }
+
+    public class FinancialResultDto
+    {
+        public string Id { get; set; } = "";
+    }
+}

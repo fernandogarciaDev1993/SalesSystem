@@ -1,16 +1,8 @@
-﻿using MongoDB.Driver;
+using MongoDB.Driver;
+using SalesSystem.Application.Interfaces;
 using SalesSystem.Domain.Entities;
 
 namespace SalesSystem.Infrastructure.Repositories;
-
-public interface IRepository<T> where T : BaseEntity
-{
-    Task<T?> GetByIdAsync(string id, string tenantId);
-    Task<List<T>> GetAllAsync(string tenantId, FilterDefinition<T>? filter = null);
-    Task<T> InsertAsync(T entity);
-    Task UpdateAsync(T entity);
-    Task<bool> DeleteAsync(string id, string tenantId);
-}
 
 public abstract class MongoRepository<T> : IRepository<T> where T : BaseEntity
 {
@@ -27,7 +19,10 @@ public abstract class MongoRepository<T> : IRepository<T> where T : BaseEntity
     public async Task<T?> GetByIdAsync(string id, string tenantId)
         => await _col.Find(F.And(TenantFilter(tenantId), F.Eq(e => e.Id, id))).FirstOrDefaultAsync();
 
-    public async Task<List<T>> GetAllAsync(string tenantId, FilterDefinition<T>? filter = null)
+    public async Task<List<T>> GetAllAsync(string tenantId)
+        => await _col.Find(TenantFilter(tenantId)).ToListAsync();
+
+    public async Task<List<T>> GetAllAsync(string tenantId, FilterDefinition<T>? filter)
     {
         var combined = filter is null ? TenantFilter(tenantId) : F.And(TenantFilter(tenantId), filter);
         return await _col.Find(combined).ToListAsync();

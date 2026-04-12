@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
+using Scalar.AspNetCore;
+using SalesSystem.Application.Interfaces;
 using SalesSystem.Application.Services;
 using SalesSystem.Infrastructure.Middleware;
 using SalesSystem.Infrastructure.Repositories;
@@ -23,6 +25,9 @@ builder.Services.AddScoped<IStockBalanceRepository, StockBalanceRepository>();
 builder.Services.AddScoped<IStockMoveRepository,    StockMoveRepository>();
 builder.Services.AddScoped<IOrderRepository,        OrderRepository>();
 builder.Services.AddScoped<IFinancialRepository,    FinancialRepository>();
+builder.Services.AddScoped<IInsumoRepository,         InsumoRepository>();
+builder.Services.AddScoped<IInsumoPurchaseRepository,  InsumoPurchaseRepository>();
+builder.Services.AddScoped<IRecipeRepository,          RecipeRepository>();
 
 // Services
 builder.Services.AddScoped<ITenantService,    TenantService>();
@@ -33,6 +38,8 @@ builder.Services.AddScoped<ICustomerService,  CustomerService>();
 builder.Services.AddScoped<IStockService,     StockService>();
 builder.Services.AddScoped<IFinancialService, FinancialService>();
 builder.Services.AddScoped<IOrderService,     OrderService>();
+builder.Services.AddScoped<IRecipeService,  RecipeService>();
+builder.Services.AddScoped<IInsumoService,  InsumoService>();
 
 builder.Services.AddHttpContextAccessor();
 
@@ -57,18 +64,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddControllers()
+    .AddJsonOptions(opts =>
+    {
+        opts.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+builder.Services.AddOpenApi();
 builder.Services.AddHostedService<MongoIndexSetup>();
+builder.Services.AddHostedService<DataSeeder>();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    options.Title = "SalesSystem API";
+    options.Theme = ScalarTheme.BluePlanet;
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -79,37 +91,106 @@ app.Run();
 // Indices MongoDB
 public class MongoIndexSetup : IHostedService
 {
-    private readonly IMongoDatabase _db;
-    public MongoIndexSetup(IMongoDatabase db) => _db = db;
+    private readonly IServiceScopeFactory _scopeFactory;
+    public MongoIndexSetup(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
     public async Task StartAsync(CancellationToken ct)
     {
-        await CreateIndex("products",    "tenantId", "isActive");
-        await CreateUniqueIndex("products", "tenantId", "sku");
-        await CreateIndex("orders",      "tenantId", "status");
-        await CreateIndex("stock_moves", "tenantId", "productId");
-        await CreateIndex("financials",  "tenantId", "status");
-        await CreateIndex("customers",   "tenantId", "document");
-        await CreateUniqueIndex("tenants", "subdomain");
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IMongoDatabase>();
+
+            await CreateIndex(db, "products",    "tenantId", "isActive");
+            await CreateUniqueIndex(db, "products", "tenantId", "sku");
+            await CreateIndex(db, "orders",      "tenantId", "status");
+            await CreateIndex(db, "stock_moves", "tenantId", "productId");
+            await CreateIndex(db, "financials",  "tenantId", "status");
+            await CreateIndex(db, "customers",   "tenantId", "document");
+            await CreateUniqueIndex(db, "insumos", "tenantId", "code");
+            await CreateIndex(db, "recipes", "tenantId", "isActive");
+            await CreateIndex(db, "insumo_purchases", "tenantId", "insumoId");
+            await CreateUniqueIndex(db, "tenants", "subdomain");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MongoIndexSetup] Warning: Could not create indexes - {ex.Message}");
+        }
     }
 
-    private async Task CreateIndex(string col, params string[] fields)
+    private static async Task CreateIndex(IMongoDatabase db, string col, params string[] fields)
     {
-        var c = _db.GetCollection<MongoDB.Bson.BsonDocument>(col);
+        var c = db.GetCollection<MongoDB.Bson.BsonDocument>(col);
         var keys = Builders<MongoDB.Bson.BsonDocument>.IndexKeys;
         var k = keys.Ascending(fields[0]);
         for (int i = 1; i < fields.Length; i++) k = keys.Ascending(fields[i]);
         await c.Indexes.CreateOneAsync(new CreateIndexModel<MongoDB.Bson.BsonDocument>(k));
     }
 
-    private async Task CreateUniqueIndex(string col, params string[] fields)
+    private static async Task CreateUniqueIndex(IMongoDatabase db, string col, params string[] fields)
     {
-        var c = _db.GetCollection<MongoDB.Bson.BsonDocument>(col);
+        var c = db.GetCollection<MongoDB.Bson.BsonDocument>(col);
         var keys = Builders<MongoDB.Bson.BsonDocument>.IndexKeys;
         var k = keys.Ascending(fields[0]);
         for (int i = 1; i < fields.Length; i++) k = keys.Ascending(fields[i]);
         await c.Indexes.CreateOneAsync(new CreateIndexModel<MongoDB.Bson.BsonDocument>(
             k, new CreateIndexOptions { Unique = true }));
+    }
+
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// Data Seeder - creates default tenant and admin user on startup
+public class DataSeeder : IHostedService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    public DataSeeder(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
+
+    public async Task StartAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var tenantRepo = scope.ServiceProvider.GetRequiredService<ITenantRepository>();
+            var userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+
+            // Create default tenant if it doesn't exist
+            var tenant = await tenantRepo.GetBySubdomainAsync("demo");
+            if (tenant is null)
+            {
+                tenant = new SalesSystem.Domain.Entities.Tenant
+                {
+                    Name = "Empresa Demo",
+                    Subdomain = "demo",
+                    IsActive = true,
+                    Modules = ["produtos", "clientes", "estoque", "pedidos", "financeiro", "insumos"]
+                };
+                tenant = await tenantRepo.InsertAsync(tenant);
+                Console.WriteLine($"[DataSeeder] Created default tenant 'demo' with Id={tenant.Id}");
+            }
+
+            // Create default admin user if it doesn't exist
+            var user = await userRepo.GetByEmailAsync("admin@admin.com", tenant.Id);
+            if (user is null)
+            {
+                user = new SalesSystem.Domain.Entities.User
+                {
+                    Name = "Administrador",
+                    Email = "admin@admin.com",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
+                    Role = SalesSystem.Domain.Entities.UserRole.Admin,
+                    Permissions = SalesSystem.Domain.Entities.Permission.DefaultFor(SalesSystem.Domain.Entities.UserRole.Admin),
+                    TenantId = tenant.Id,
+                    IsActive = true
+                };
+                await userRepo.InsertAsync(user);
+                Console.WriteLine($"[DataSeeder] Created default admin user 'admin@admin.com'");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DataSeeder] Warning: Could not seed data - {ex.Message}");
+        }
     }
 
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;

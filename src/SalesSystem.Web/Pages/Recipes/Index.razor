@@ -1,0 +1,191 @@
+@page "/recipes"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Receitas - SalesSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Receitas</h3>
+    <a href="/recipes/new" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nova Receita
+    </a>
+</div>
+
+<AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">Filtrar por categoria</label>
+                    <select class="form-select" @bind="categoryFilter">
+                        <option value="">Todas</option>
+                        @foreach (var cat in recipeCategories)
+                        {
+                            <option value="@cat">@cat</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nome</th>
+                            <th>Categoria</th>
+                            <th>Descricao</th>
+                            <th class="text-center">Ingredientes</th>
+                            <th class="text-end">Custo Total</th>
+                            <th class="text-center">Rendimento</th>
+                            <th class="text-end">Custo/Unidade</th>
+                            <th class="text-center">Insumo</th>
+                            <th class="text-center">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var filteredRecipes = string.IsNullOrEmpty(categoryFilter) ? recipes : recipes?.Where(r => r.Category == categoryFilter).ToList(); }
+                        @if (filteredRecipes?.Any() == true)
+                        {
+                            @foreach (var r in filteredRecipes)
+                            {
+                                <tr>
+                                    <td>@r.Name</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(r.Category))
+                                        {
+                                            <span class="badge bg-primary bg-opacity-75">@r.Category</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="text-muted">@(r.Description ?? "-")</td>
+                                    <td class="text-center">@r.Ingredients.Count</td>
+                                    <td class="text-end">@r.CalculatedCost.ToString("C", ptBR)</td>
+                                    <td class="text-center">@r.YieldQuantity</td>
+                                    <td class="text-end">@r.CostPerUnit.ToString("C", ptBR)</td>
+                                    <td class="text-center">
+                                        @if (r.IsInsumo)
+                                        {
+                                            <span class="badge bg-info">Sim</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Nao</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-success me-1" @onclick="() => DuplicateRecipe(r.Id)" title="Duplicar">
+                                            <i class="bi bi-copy"></i>
+                                        </button>
+                                        <a href="/recipes/@r.Id/edit" class="btn btn-sm btn-outline-primary me-1" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteRecipe(r.Id)" title="Excluir">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">Nenhuma receita cadastrada.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<RecipeDto>? recipes;
+    private bool loading = true;
+    private string? errorMessage;
+    private string categoryFilter = "";
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+    private static readonly List<string> recipeCategories =
+    [
+        "Prato Principal", "Acompanhamento", "Sobremesa", "Bebida", "Molho",
+        "Salada", "Entrada", "Lanche", "Sopa", "Base", "Outro"
+    ];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadRecipes();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadRecipes()
+    {
+        loading = true;
+        try
+        {
+            recipes = await Api.GetAsync<List<RecipeDto>>("api/recipes") ?? [];
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar receitas.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task DuplicateRecipe(string id)
+    {
+        var success = await Api.PostAsync($"api/recipes/{id}/duplicate");
+        if (success)
+            await LoadRecipes();
+    }
+
+    private async Task DeleteRecipe(string id)
+    {
+        var success = await Api.DeleteAsync($"api/recipes/{id}");
+        if (success)
+            await LoadRecipes();
+    }
+
+    public class RecipeDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string? Category { get; set; }
+        public List<IngredientDto> Ingredients { get; set; } = [];
+        public decimal CalculatedCost { get; set; }
+        public int YieldQuantity { get; set; } = 1;
+        public decimal CostPerUnit { get; set; }
+        public bool IsInsumo { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public class IngredientDto
+    {
+        public string InsumoId { get; set; } = "";
+        public string InsumoName { get; set; } = "";
+    }
+}

@@ -1,0 +1,145 @@
+@page "/stock/low"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Estoque Baixo - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/stock" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Estoque Baixo</h3>
+</div>
+
+<AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+@if (loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">
+            Insumos com estoque abaixo do minimo
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Nome</th>
+                            <th class="text-end">Estoque Atual</th>
+                            <th class="text-end">Estoque Minimo</th>
+                            <th class="text-end">Deficit</th>
+                            <th>Unidade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (lowStockItems.Any())
+                        {
+                            @foreach (var item in lowStockItems)
+                            {
+                                var factor = item.Unit switch { "KG" => 1000, "LT" => 1000, _ => 1 };
+                                var deficit = item.MinStock - item.CurrentStock;
+                                var displayUnit = item.Unit;
+                                <tr class="@(item.CurrentStock == 0 ? "table-danger" : "table-warning")">
+                                    <td><code>@item.Code</code></td>
+                                    <td>@item.Name</td>
+                                    <td class="text-end">
+                                        @if (factor > 1)
+                                        {
+                                            @($"{(decimal)item.CurrentStock / factor:N2} {displayUnit}")
+                                        }
+                                        else
+                                        {
+                                            @($"{item.CurrentStock:N0} {displayUnit.ToLower()}")
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (factor > 1)
+                                        {
+                                            @($"{(decimal)item.MinStock / factor:N2} {displayUnit}")
+                                        }
+                                        else
+                                        {
+                                            @($"{item.MinStock:N0} {displayUnit.ToLower()}")
+                                        }
+                                    </td>
+                                    <td class="text-end fw-semibold text-danger">
+                                        @if (factor > 1)
+                                        {
+                                            @($"{(decimal)deficit / factor:N2} {displayUnit}")
+                                        }
+                                        else
+                                        {
+                                            @($"{deficit:N0} {displayUnit.ToLower()}")
+                                        }
+                                    </td>
+                                    <td>@displayUnit</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                    Todos os insumos estao com estoque adequado.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<InsumoDto> lowStockItems = [];
+    private bool loading = true;
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            var allInsumos = await Api.GetAsync<List<InsumoDto>>("api/insumos") ?? [];
+            lowStockItems = allInsumos
+                    .Where(i => i.CurrentStock <= i.MinStock)
+                    .OrderByDescending(i => i.MinStock - i.CurrentStock)
+                    .ToList();
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar dados de estoque.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    public class InsumoDto
+    {
+        public string Id { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Unit { get; set; } = "KG";
+        public long CurrentStock { get; set; }
+        public long MinStock { get; set; }
+    }
+}

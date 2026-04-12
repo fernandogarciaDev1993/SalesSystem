@@ -1,2 +1,153 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Financeiro - Novo Lancamento
+@page "/financial/new"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Novo Lancamento - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/financial" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0">Novo Lancamento</h3>
+</div>
+
+<AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="financialForm">
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Descricao *</label>
+                    <InputText @bind-Value="model.Description" class="form-control" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Tipo *</label>
+                    <InputSelect @bind-Value="model.Type" class="form-select">
+                        <option value="Receita">Receita</option>
+                        <option value="Despesa">Despesa</option>
+                    </InputSelect>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Categoria</label>
+                    <InputSelect @bind-Value="model.Category" class="form-select">
+                        <option value="Venda">Venda</option>
+                        <option value="Compra">Compra</option>
+                        <option value="FolhaPagamento">Folha de Pagamento</option>
+                        <option value="Aluguel">Aluguel</option>
+                        <option value="Imposto">Imposto</option>
+                        <option value="Servico">Servico</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Logistica">Logistica</option>
+                        <option value="CaixaInicial">Caixa Inicial</option>
+                        <option value="Gasolina">Gasolina</option>
+                        <option value="AporteFinanceiro">Aporte Financeiro</option>
+                        <option value="Outro">Outro</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Valor *</label>
+                    <InputNumber @bind-Value="model.Amount" class="form-control" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Vencimento *</label>
+                    <InputDate @bind-Value="model.DueDate" class="form-control" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Forma Pagamento</label>
+                    <InputText @bind-Value="model.PaymentMethod" class="form-control" placeholder="Pix, Boleto..." />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Observacoes</label>
+                <InputTextArea @bind-Value="model.Notes" class="form-control" rows="2" />
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@saving">
+                    @if (saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    Cadastrar
+                </button>
+                <a href="/financial" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private FinancialModel model = new() { DueDate = DateTime.Today };
+    private bool saving;
+    private string? errorMessage;
+
+    private async Task HandleSubmit()
+    {
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            var payload = new
+            {
+                Type = model.Type == "Receita" ? 0 : 1,
+                Category = GetCategoryValue(model.Category),
+                model.Description,
+                model.Amount,
+                AmountDue = model.Amount,
+                model.DueDate,
+                Status = 0, // Pendente
+                model.PaymentMethod,
+                model.Notes
+            };
+
+            var result = await Api.PostAsync<object, FinancialResultDto>("api/financial", payload);
+            if (result is not null) Nav.NavigateTo("/financial");
+            else errorMessage = "Erro ao cadastrar lancamento.";
+        }
+        catch
+        {
+            errorMessage = "Erro ao cadastrar lancamento.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private int GetCategoryValue(string cat) => cat switch
+    {
+        "Venda" => 0,
+        "Compra" => 1,
+        "FolhaPagamento" => 2,
+        "Aluguel" => 3,
+        "Imposto" => 4,
+        "Servico" => 5,
+        "Marketing" => 6,
+        "Logistica" => 7,
+        "Outro" => 8,
+        "CaixaInicial" => 9,
+        "Gasolina" => 10,
+        "AporteFinanceiro" => 11,
+        _ => 8
+    };
+
+    public class FinancialModel
+    {
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = "Receita";
+        public string Category { get; set; } = "Venda";
+        public decimal Amount { get; set; }
+        public DateTime DueDate { get; set; }
+        public string? PaymentMethod { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    public class FinancialResultDto
+    {
+        public string Id { get; set; } = "";
+    }
+}

@@ -11,3 +11,5 @@ obj/
 !appsettings.Development.json
 packages/
 *.nupkg
+TestResults/
+*.log

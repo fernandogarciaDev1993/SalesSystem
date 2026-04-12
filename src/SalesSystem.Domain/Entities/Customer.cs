@@ -4,6 +4,7 @@ namespace SalesSystem.Domain.Entities;
 
 public class Customer : BaseEntity
 {
+    [BsonElement("code")]              public string             Code              { get; set; } = string.Empty;
     [BsonElement("type")]              public CustomerType       Type              { get; set; } = CustomerType.PF;
     [BsonElement("name")]              public string             Name              { get; set; } = string.Empty;
     [BsonElement("tradeName")]         public string?            TradeName         { get; set; }
@@ -17,6 +18,7 @@ public class Customer : BaseEntity
     [BsonElement("currentDebt")]       public decimal            CurrentDebt       { get; set; }
     [BsonElement("paymentTermDays")]   public int                PaymentTermDays   { get; set; }
     [BsonElement("tags")]              public List<string>       Tags              { get; set; } = [];
+    [BsonElement("birthDate")]         public DateTime?          BirthDate         { get; set; }
     [BsonElement("notes")]             public string?            Notes             { get; set; }
     [BsonElement("isActive")]          public bool               IsActive          { get; set; } = true;
 }

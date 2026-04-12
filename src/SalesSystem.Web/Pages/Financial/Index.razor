@@ -1,2 +1,181 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Financeiro - Lancamentos
+@page "/financial"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Financeiro - SalesSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Financeiro</h3>
+    <a href="/financial/new" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Novo Lancamento
+    </a>
+</div>
+
+@if (summary is not null)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-success bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-success fw-bold fs-5">@summary.TotalReceitas.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Receitas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-danger bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-danger fw-bold fs-5">@summary.TotalDespesas.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Despesas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-primary bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-primary fw-bold fs-5">@summary.Saldo.ToString("C", ptBR)</div>
+                    <div class="text-muted small">Saldo</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm bg-warning bg-opacity-10">
+                <div class="card-body text-center">
+                    <div class="text-warning fw-bold fs-5">@summary.Pendentes / @summary.Vencidos</div>
+                    <div class="text-muted small">Pendentes / Vencidos</div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Descricao</th>
+                            <th>Tipo</th>
+                            <th>Categoria</th>
+                            <th class="text-end">Valor</th>
+                            <th>Status</th>
+                            <th>Vencimento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (entries?.Any() == true)
+                        {
+                            @foreach (var e in entries)
+                            {
+                                <tr>
+                                    <td>@e.Description</td>
+                                    <td>
+                                        <span class="badge @(e.Type == "Receita" ? "bg-success" : "bg-danger")">
+                                            @e.Type
+                                        </span>
+                                    </td>
+                                    <td>@e.Category</td>
+                                    <td class="text-end @(e.Type == "Receita" ? "text-success" : "text-danger")">
+                                        @e.Amount.ToString("C", ptBR)
+                                    </td>
+                                    <td>
+                                        <span class="badge @GetStatusBadge(e.Status)">@e.Status</span>
+                                    </td>
+                                    <td>@e.DueDate.ToString("dd/MM/yyyy")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">Nenhum lancamento encontrado.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<FinancialEntryDto>? entries;
+    private FinancialSummaryDto? summary;
+    private bool loading = true;
+    private string? errorMessage;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var now = DateTime.UtcNow;
+            var from = new DateTime(now.Year, now.Month, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            var entriesTask = Api.GetAsync<List<FinancialEntryDto>>("api/financial");
+            var summaryTask = Api.GetAsync<FinancialSummaryDto>($"api/financial/summary?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+            await Task.WhenAll(entriesTask, summaryTask);
+            entries = await entriesTask ?? [];
+            summary = await summaryTask;
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar dados financeiros.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Pendente" => "bg-warning text-dark",
+        "Pago" => "bg-success",
+        "Vencido" => "bg-danger",
+        "Cancelado" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    public class FinancialEntryDto
+    {
+        public string Id { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Category { get; set; } = "";
+        public decimal Amount { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime DueDate { get; set; }
+    }
+
+    public class FinancialSummaryDto
+    {
+        public decimal TotalReceitas { get; set; }
+        public decimal TotalDespesas { get; set; }
+        public decimal Saldo { get; set; }
+        public int Pendentes { get; set; }
+        public int Vencidos { get; set; }
+    }
+}

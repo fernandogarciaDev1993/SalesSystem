@@ -1,2 +1,12 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Dashboard
+@page "/dashboard"
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard - SalesSystem</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Nav.NavigateTo("/", replace: true);
+    }
+}

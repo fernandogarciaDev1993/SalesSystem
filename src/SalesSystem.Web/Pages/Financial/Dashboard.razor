@@ -1,2 +1,80 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Financeiro - Dashboard
+@page "/financial/dashboard"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Dashboard Financeiro - SalesSystem</PageTitle>
+
+<h3 class="mb-4">Dashboard Financeiro</h3>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else if (summary is not null)
+{
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm bg-success bg-opacity-10">
+                <div class="card-body text-center py-4">
+                    <div class="text-success fw-bold fs-3">@summary.TotalReceitas.ToString("C", ptBR)</div>
+                    <div class="text-muted">Total Receitas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm bg-danger bg-opacity-10">
+                <div class="card-body text-center py-4">
+                    <div class="text-danger fw-bold fs-3">@summary.TotalDespesas.ToString("C", ptBR)</div>
+                    <div class="text-muted">Total Despesas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm bg-primary bg-opacity-10">
+                <div class="card-body text-center py-4">
+                    <div class="text-primary fw-bold fs-3">@summary.Saldo.ToString("C", ptBR)</div>
+                    <div class="text-muted">Saldo</div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private FinancialSummaryDto? summary;
+    private bool loading = true;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var now = DateTime.UtcNow;
+            var from = new DateTime(now.Year, 1, 1);
+            summary = await Api.GetAsync<FinancialSummaryDto>($"api/financial/summary?from={from:yyyy-MM-dd}&to={now:yyyy-MM-dd}");
+        }
+        catch { }
+        finally { loading = false; }
+    }
+
+    public class FinancialSummaryDto
+    {
+        public decimal TotalReceitas { get; set; }
+        public decimal TotalDespesas { get; set; }
+        public decimal Saldo { get; set; }
+        public int Pendentes { get; set; }
+        public int Vencidos { get; set; }
+    }
+}

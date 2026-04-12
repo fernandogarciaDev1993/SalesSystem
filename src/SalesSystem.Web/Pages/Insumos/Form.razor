@@ -1,0 +1,254 @@
+@page "/insumos/new"
+@page "/insumos/{Id}/edit"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>@(IsEdit ? "Editar" : "Novo") Insumo - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/insumos" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h3 class="mb-0">@(IsEdit ? "Editar" : "Novo") Insumo</h3>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="insumoForm">
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label">Nome *</label>
+                        <InputText @bind-Value="model.Name" class="form-control" placeholder="Ex: Farinha de Trigo" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Unidade *</label>
+                        <InputSelect @bind-Value="model.Unit" class="form-select">
+                            <option value="KG">Quilograma (KG)</option>
+                            <option value="LT">Litro (LT)</option>
+                            <option value="UN">Unidade (UN)</option>
+                            <option value="GR">Grama (GR)</option>
+                            <option value="ML">Mililitro (ML)</option>
+                            <option value="MT">Metro (MT)</option>
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Descricao</label>
+                    <InputTextArea @bind-Value="model.Description" class="form-control" rows="2" />
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Estoque Minimo (@UnitLabel)</label>
+                        <InputNumber @bind-Value="model.MinStock" class="form-control" />
+                    </div>
+                </div>
+
+                @if (!IsEdit)
+                {
+                    <hr class="my-3" />
+                    <h6 class="text-muted mb-3"><i class="bi bi-bag-check me-1"></i>Venda Direta</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="model.IsSellable" class="form-check-input" id="isSellable" />
+                                <label class="form-check-label" for="isSellable">
+                                    Este insumo tambem e vendido como produto (ex: refrigerante, agua)
+                                </label>
+                            </div>
+                        </div>
+                        @if (model.IsSellable)
+                        {
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Preco de Venda (R$) *</label>
+                                <InputNumber @bind-Value="model.SalePrice" class="form-control" step="0.01" />
+                                <small class="text-muted">Preco por unidade para o cliente</small>
+                            </div>
+                        }
+                    </div>
+
+                    <hr class="my-3" />
+                    <h6 class="text-muted mb-3"><i class="bi bi-cart-plus me-1"></i>Compra Inicial</h6>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Qtde de embalagens *</label>
+                            <InputNumber @bind-Value="model.InitialQuantity" class="form-control" step="1" />
+                            <small class="text-muted">Quantas embalagens comprou</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">@PackageSizeLabel *</label>
+                            <InputNumber @bind-Value="model.InitialPackageSize" class="form-control" />
+                            <small class="text-muted">@PackageSizeHint</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Preco por embalagem (R$) *</label>
+                            <InputNumber @bind-Value="model.InitialUnitCost" class="form-control" step="0.01" />
+                            <small class="text-muted">Quanto pagou por cada embalagem</small>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Resumo</label>
+                            <div class="form-control bg-light small" style="min-height: 38px;">
+                                @PurchaseSummary
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="d-flex gap-2 mt-2">
+                    <button type="submit" class="btn btn-primary" disabled="@saving">
+                        @if (saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        @(IsEdit ? "Salvar" : "Cadastrar")
+                    </button>
+                    <a href="/insumos" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private bool IsEdit => !string.IsNullOrEmpty(Id);
+    private InsumoModel model = new();
+    private bool loading, saving;
+    private string? errorMessage;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    private string PackageSizeLabel => model.Unit switch
+    {
+        "KG" => "Gramas por embalagem",
+        "LT" => "Mililitros por embalagem",
+        "ML" => "Mililitros por embalagem",
+        "GR" => "Gramas por embalagem",
+        "UN" => "Unidades por embalagem",
+        _ => "Conteudo por embalagem"
+    };
+
+    private string PackageSizeHint => model.Unit switch
+    {
+        "KG" => "Ex: pacote de 1kg = 1000",
+        "LT" => "Ex: garrafa de 1 litro = 1000",
+        "ML" => "Ex: frasco de 20ml = 20",
+        "GR" => "Ex: pacote de 500g = 500",
+        "UN" => "Ex: cartela de 20 ovos = 20",
+        _ => "Quantidade dentro da embalagem"
+    };
+
+    private string BaseUnitLabel => model.Unit switch
+    {
+        "KG" => "g",
+        "LT" => "ml",
+        "ML" => "ml",
+        "GR" => "g",
+        "UN" => "un",
+        "MT" => "m",
+        _ => model.Unit.ToLower()
+    };
+
+    private string PurchaseSummary
+    {
+        get
+        {
+            if (model.InitialQuantity <= 0 || model.InitialUnitCost <= 0 || model.InitialPackageSize <= 0) return "-";
+            var totalBaseUnits = (long)(model.InitialQuantity * model.InitialPackageSize);
+            var costPerBaseUnit = model.InitialUnitCost / model.InitialPackageSize;
+            var total = model.InitialQuantity * model.InitialUnitCost;
+            return $"{totalBaseUnits:N0} {BaseUnitLabel} em estoque | {costPerBaseUnit.ToString("C4", ptBR)}/{BaseUnitLabel} | Total: {total.ToString("C2", ptBR)}";
+        }
+    }
+
+    private string UnitLabel => model.Unit switch
+    {
+        "KG" => "KG",
+        "LT" => "LT",
+        "GR" => "g",
+        "ML" => "ml",
+        "UN" => "un",
+        "MT" => "m",
+        _ => model.Unit
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        if (IsEdit)
+        {
+            loading = true;
+            try
+            {
+                var insumo = await Api.GetAsync<InsumoModel>($"api/insumos/{Id}");
+                if (insumo is not null) model = insumo;
+                else errorMessage = "Insumo nao encontrado.";
+            }
+            catch { errorMessage = "Erro ao carregar insumo."; }
+            finally { loading = false; }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!IsEdit && (model.InitialQuantity <= 0 || model.InitialUnitCost <= 0 || model.InitialPackageSize <= 0))
+        {
+            errorMessage = "Preencha todos os campos da compra inicial (quantidade, conteudo da embalagem e preco).";
+            return;
+        }
+
+        if (!IsEdit && model.IsSellable && model.SalePrice <= 0)
+        {
+            errorMessage = "Informe o preco de venda do produto.";
+            return;
+        }
+
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (IsEdit)
+            {
+                var result = await Api.PutAsync<InsumoModel, InsumoModel>($"api/insumos/{Id}", model);
+                if (result is not null) Nav.NavigateTo("/insumos");
+                else errorMessage = "Erro ao atualizar insumo.";
+            }
+            else
+            {
+                var (data, error) = await Api.PostWithErrorAsync<InsumoModel, InsumoModel>("api/insumos", model);
+                if (data is not null) Nav.NavigateTo("/insumos");
+                else errorMessage = error ?? "Erro ao cadastrar insumo.";
+            }
+        }
+        catch (Exception ex) { errorMessage = $"Erro ao salvar insumo: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    public class InsumoModel
+    {
+        public string Id { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string Unit { get; set; } = "KG";
+        public decimal MinStock { get; set; }
+        public decimal InitialQuantity { get; set; }
+        public decimal InitialUnitCost { get; set; }
+        public int InitialPackageSize { get; set; }
+        public bool IsSellable { get; set; }
+        public decimal SalePrice { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

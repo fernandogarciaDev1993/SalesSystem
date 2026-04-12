@@ -1,2 +1,469 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Pedidos - Novo
+@page "/orders/new"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Novo Pedido - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/orders" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0">Novo Pedido</h3>
+</div>
+
+<AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+@if (birthdayAlert is not null)
+{
+    <div class="alert alert-info alert-dismissible fade show d-flex align-items-center" role="alert">
+        <span class="fs-5 me-2">&#x1F382;</span>
+        <strong>@birthdayAlert</strong>
+        <button type="button" class="btn-close" @onclick="() => birthdayAlert = null"></button>
+    </div>
+}
+
+@if (stockWarning is not null)
+{
+    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+        <span class="me-2">&#x26A0;&#xFE0F;</span>
+        <strong>@stockWarning</strong>
+        <button type="button" class="btn-close" @onclick="() => stockWarning = null"></button>
+    </div>
+}
+
+@if (showMarginWarning)
+{
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+        <span class="me-2">&#x26A0;&#xFE0F;</span>
+        <strong>Atencao: O desconto aplicado esta acima da margem de lucro do pedido!</strong>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white fw-semibold">Dados do Pedido</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Cliente *</label>
+                        <select class="form-select" @onchange="OnCustomerChanged">
+                            <option value="">Selecione um cliente...</option>
+                            @if (customers is not null)
+                            {
+                                @foreach (var c in customers)
+                                {
+                                    <option value="@c.Id">@c.Name - @c.Document</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select" @bind="orderType">
+                            <option value="Venda">Venda</option>
+                            <option value="Orcamento">Orcamento</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Observacoes</label>
+                        <input type="text" class="form-control" @bind="notes" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                <span>Itens</span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-5">
+                        <select class="form-select" @bind="selectedProductId">
+                            <option value="">Selecione um produto...</option>
+                            @if (products is not null)
+                            {
+                                @foreach (var p in products)
+                                {
+                                    <option value="@p.Id">@p.Name - @p.Sku (@p.SalePrice.ToString("C", ptBR))</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" class="form-control" placeholder="Quantidade" @bind="itemQuantity" min="1" step="1" />
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-primary w-100" @onclick="AddItem">
+                            <i class="bi bi-plus-lg"></i> Adicionar
+                        </button>
+                    </div>
+                </div>
+
+                @if (items.Any())
+                {
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Produto</th>
+                                <th>SKU</th>
+                                <th class="text-center">Qtd</th>
+                                <th class="text-end">Preco Unit.</th>
+                                <th class="text-end">Desc/Unid (R$)</th>
+                                <th class="text-end">Preco Efetivo</th>
+                                <th class="text-end">Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in items)
+                            {
+                                var currentItem = item;
+                                <tr>
+                                    <td>@currentItem.Name</td>
+                                    <td><code>@currentItem.Sku</code></td>
+                                    <td class="text-center">@currentItem.Quantity</td>
+                                    <td class="text-end">@currentItem.UnitPrice.ToString("C", ptBR)</td>
+                                    <td class="text-end" style="width: 140px;">
+                                        <input type="number" class="form-control form-control-sm text-end"
+                                               value="@currentItem.DiscountPerUnit"
+                                               @onchange="(e) => OnItemDiscountChanged(currentItem, e)"
+                                               min="0" step="0.01" />
+                                    </td>
+                                    <td class="text-end @(currentItem.DiscountPerUnit > 0 ? "text-success fw-semibold" : "")">
+                                        @((currentItem.UnitPrice - currentItem.DiscountPerUnit).ToString("C", ptBR))
+                                    </td>
+                                    <td class="text-end">@GetItemTotal(currentItem).ToString("C", ptBR)</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveItem(currentItem)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="text-muted text-center">Nenhum item adicionado.</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white fw-semibold">Resumo</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Subtotal:</span>
+                    <strong>@GetSubtotal().ToString("C", ptBR)</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Itens:</span>
+                    <span>@items.Count</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label mb-1">Desconto (%)</label>
+                    <input type="number" class="form-control form-control-sm"
+                           @bind="orderDiscountPct" @bind:event="onchange"
+                           min="0" max="100" step="0.01" />
+                </div>
+                <div class="d-flex justify-content-between mb-2 text-danger">
+                    <span>Desconto itens (R$):</span>
+                    <span>- @GetTotalItemDiscounts().ToString("C", ptBR)</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2 text-danger">
+                    <span>Desconto pedido (@orderDiscountPct.ToString("0.##")%):</span>
+                    <span>- @GetOrderPercentageDiscount().ToString("C", ptBR)</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2 text-danger fw-semibold">
+                    <span>Desconto total:</span>
+                    <span>- @GetTotalDiscount().ToString("C", ptBR)</span>
+                </div>
+                <hr />
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="fs-5 fw-bold">Total:</span>
+                    <span class="fs-5 fw-bold text-primary">@GetTotal().ToString("C", ptBR)</span>
+                </div>
+                <button class="btn btn-primary w-100" @onclick="HandleSubmit" disabled="@saving">
+                    @if (saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    Criar Pedido
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<ProductDto>? products;
+    private List<CustomerDto>? customers;
+    private List<StockBalanceDto> stockBalances = [];
+    private List<OrderItemModel> items = new();
+    private string selectedProductId = "";
+    private decimal itemQuantity = 1;
+    private string? selectedCustomerId;
+    private string? selectedCustomerName;
+    private string? selectedCustomerDocument;
+    private string orderType = "Venda";
+    private string? notes;
+    private decimal orderDiscountPct;
+    private bool saving;
+    private string? errorMessage;
+    private string? birthdayAlert;
+    private string? stockWarning;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    private bool showMarginWarning => GetTotalDiscount() > GetTotalProfit();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var productsTask = Api.GetAsync<List<ProductDto>>("api/products");
+            var customersTask = Api.GetAsync<List<CustomerDto>>("api/customers");
+            var stockTask = Api.GetAsync<List<StockBalanceDto>>("api/stock/balances");
+            await Task.WhenAll(productsTask, customersTask, stockTask);
+            products = await productsTask ?? [];
+            customers = await customersTask ?? [];
+            stockBalances = await stockTask ?? [];
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar dados.";
+        }
+    }
+
+    private void OnCustomerChanged(ChangeEventArgs e)
+    {
+        selectedCustomerId = e.Value?.ToString();
+        var customer = customers?.FirstOrDefault(c => c.Id == selectedCustomerId);
+        selectedCustomerName = customer?.Name;
+        selectedCustomerDocument = customer?.Document;
+
+        birthdayAlert = null;
+        if (customer?.BirthDate is not null)
+        {
+            var today = DateTime.Today;
+            var birth = customer.BirthDate.Value;
+            if (birth.Day == today.Day && birth.Month == today.Month)
+            {
+                birthdayAlert = $"Hoje e aniversario de {customer.Name}! Considere oferecer um desconto especial.";
+            }
+        }
+    }
+
+    private void AddItem()
+    {
+        if (string.IsNullOrEmpty(selectedProductId) || itemQuantity <= 0) return;
+
+        var product = products?.FirstOrDefault(p => p.Id == selectedProductId);
+        if (product is null) return;
+
+        var existing = items.FirstOrDefault(i => i.ProductId == product.Id);
+        var totalRequested = itemQuantity + (existing?.Quantity ?? 0);
+
+        // Check stock availability
+        var balance = stockBalances.FirstOrDefault(b => b.ProductId == product.Id);
+        var available = balance?.AvailableBalance ?? 0;
+        if (totalRequested > available)
+        {
+            stockWarning = $"Estoque insuficiente para {product.Name}. Disponivel: {available:N0}, Solicitado: {totalRequested:N0}";
+        }
+
+        if (existing is not null)
+        {
+            existing.Quantity += itemQuantity;
+            existing.TotalPrice = existing.Quantity * existing.UnitPrice;
+        }
+        else
+        {
+            items.Add(new OrderItemModel
+            {
+                ProductId = product.Id,
+                Sku = product.Sku,
+                Name = product.Name,
+                Unit = product.Unit,
+                Quantity = itemQuantity,
+                UnitPrice = product.SalePrice,
+                UnitCost = product.CostPrice,
+                TotalPrice = itemQuantity * product.SalePrice
+            });
+        }
+
+        selectedProductId = "";
+        itemQuantity = 1;
+    }
+
+    private void OnItemDiscountChanged(OrderItemModel item, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var val) && val >= 0)
+        {
+            item.DiscountPerUnit = val;
+            item.DiscountAmount = val * item.Quantity;
+        }
+        else
+        {
+            item.DiscountPerUnit = 0;
+            item.DiscountAmount = 0;
+        }
+    }
+
+    private decimal GetItemTotal(OrderItemModel item)
+    {
+        var effectivePrice = item.UnitPrice - item.DiscountPerUnit;
+        return item.Quantity * effectivePrice;
+    }
+
+    private decimal GetSubtotal() => items.Sum(i => i.Quantity * i.UnitPrice);
+
+    private decimal GetTotalItemDiscounts() => items.Sum(i => i.DiscountPerUnit * i.Quantity);
+
+    private decimal GetOrderPercentageDiscount()
+    {
+        var afterItemDiscounts = GetSubtotal() - GetTotalItemDiscounts();
+        return afterItemDiscounts * orderDiscountPct / 100m;
+    }
+
+    private decimal GetTotalDiscount() => GetTotalItemDiscounts() + GetOrderPercentageDiscount();
+
+    private decimal GetTotal()
+    {
+        var total = GetSubtotal() - GetTotalDiscount();
+        return total < 0 ? 0 : total;
+    }
+
+    private decimal GetTotalProfit()
+    {
+        return items.Sum(i => (i.Quantity * i.UnitPrice) - (i.UnitCost * i.Quantity));
+    }
+
+    private void RemoveItem(OrderItemModel item) => items.Remove(item);
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrEmpty(selectedCustomerId) || !items.Any())
+        {
+            errorMessage = "Selecione um cliente e adicione ao menos um item.";
+            return;
+        }
+
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            var subtotal = GetSubtotal();
+            var discountTotal = GetTotalDiscount();
+            var total = GetTotal();
+            var totalCost = items.Sum(i => i.UnitCost * i.Quantity);
+
+            var order = new
+            {
+                CustomerId = selectedCustomerId,
+                CustomerName = selectedCustomerName ?? "",
+                CustomerDocument = selectedCustomerDocument ?? "",
+                Type = orderType == "Orcamento" ? 1 : 0,
+                Items = items.Select(i => new
+                {
+                    i.ProductId,
+                    i.Sku,
+                    i.Name,
+                    i.Unit,
+                    i.Quantity,
+                    i.UnitPrice,
+                    i.UnitCost,
+                    DiscountAmount = i.DiscountPerUnit * i.Quantity,
+                    DiscountPct = 0m,
+                    TotalPrice = GetItemTotal(i),
+                    TotalCost = i.UnitCost * i.Quantity
+                }),
+                Subtotal = subtotal,
+                DiscountTotal = discountTotal,
+                Total = total,
+                TotalCost = totalCost,
+                GrossMargin = total - totalCost,
+                GrossMarginPct = total > 0 ? ((total - totalCost) / total * 100) : 0,
+                Notes = notes
+            };
+
+            var result = await Api.PostAsync<object, OrderResultDto>("api/orders", order);
+            if (result is not null) Nav.NavigateTo("/orders");
+            else errorMessage = "Erro ao criar pedido.";
+        }
+        catch
+        {
+            errorMessage = "Erro ao criar pedido.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public class ProductDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public decimal SalePrice { get; set; }
+        public decimal CostPrice { get; set; }
+        public string Unit { get; set; } = "UN";
+    }
+
+    public class CustomerDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Document { get; set; } = "";
+        public DateTime? BirthDate { get; set; }
+    }
+
+    public class OrderItemModel
+    {
+        public string ProductId { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Unit { get; set; } = "UN";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal DiscountPerUnit { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal TotalPrice { get; set; }
+    }
+
+    public class StockBalanceDto
+    {
+        public string ProductId { get; set; } = "";
+        public string ProductName { get; set; } = "";
+        public string ProductSku { get; set; } = "";
+        public decimal CurrentBalance { get; set; }
+        public decimal AvailableBalance { get; set; }
+        public decimal MinBalance { get; set; }
+        public decimal AverageCost { get; set; }
+        public string Unit { get; set; } = "UN";
+    }
+
+    public class OrderResultDto
+    {
+        public string Id { get; set; } = "";
+        public string OrderNumber { get; set; } = "";
+    }
+}

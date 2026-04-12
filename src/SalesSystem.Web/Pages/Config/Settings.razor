@@ -1,2 +1,39 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Config - Sistema
+@page "/settings"
+@rendermode InteractiveServer
+@inject ITenantContext TenantContext
+
+<PageTitle>Configuracoes - SalesSystem</PageTitle>
+
+<h3 class="mb-4">Configuracoes</h3>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h5>Tenant</h5>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Tenant ID</label>
+                <input type="text" class="form-control" @bind="tenantId" />
+            </div>
+            <div class="col-md-2 mb-3 d-flex align-items-end">
+                <button class="btn btn-primary" @onclick="SaveTenant">Salvar</button>
+            </div>
+        </div>
+        <AlertModal Visible="saved" Message="Tenant atualizado com sucesso!" Title="Sucesso" Type="success" OnClose="() => saved = false" />
+    </div>
+</div>
+
+@code {
+    private string tenantId = "demo";
+    private bool saved;
+
+    protected override void OnInitialized()
+    {
+        tenantId = TenantContext.TenantId;
+    }
+
+    private void SaveTenant()
+    {
+        TenantContext.TenantId = tenantId;
+        saved = true;
+    }
+}

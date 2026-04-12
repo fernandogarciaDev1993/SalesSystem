@@ -1,0 +1,351 @@
+@page "/production"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Produzir - SalesSystem</PageTitle>
+
+<h3 class="mb-2"><i class="bi bi-gear me-2"></i>Producao</h3>
+<p class="text-muted mb-4">Selecione uma receita para produzir. O sistema consome os insumos e adiciona o resultado ao estoque correspondente.</p>
+
+<AlertModal Visible="alertMessage is not null" Message="@(alertMessage ?? "")" Title="@alertTitle" Type="@alertType" OnClose="() => alertMessage = null" />
+
+@if (loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-semibold">Receita</label>
+                    <select class="form-select" @bind="selectedRecipeId" @bind:after="OnRecipeSelected">
+                        <option value="">Selecione uma receita...</option>
+                        @if (recipes is not null)
+                        {
+                            @foreach (var r in recipes.Where(x => x.IsActive))
+                            {
+                                <option value="@r.Id">@r.Name @(r.IsInsumo ? "(gera insumo)" : "(gera produto)")</option>
+                            }
+                        }
+                    </select>
+                    @if (recipes?.Any(r => r.IsActive) != true)
+                    {
+                        <small class="text-danger">Nenhuma receita cadastrada. <a href="/recipes/new">Cadastre uma receita.</a></small>
+                    }
+                </div>
+
+                @if (selectedRecipe is not null && selectedRecipe.IsInsumo && !string.IsNullOrEmpty(selectedRecipe.OutputInsumoId))
+                {
+                    <div class="col-md-4 mb-3 d-flex align-items-end">
+                        <div class="alert alert-info mb-0 w-100 py-2">
+                            <i class="bi bi-box-seam me-1"></i>Producao gera estoque do insumo: <strong>@outputInsumoName</strong>
+                        </div>
+                    </div>
+                }
+                else if (selectedRecipe is not null && !selectedRecipe.IsInsumo)
+                {
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold">Produto de destino</label>
+                        <select class="form-select" @bind="selectedProductId">
+                            <option value="">Selecione um produto...</option>
+                            @if (products is not null)
+                            {
+                                @* Primeiro os produtos vinculados a esta receita *@
+                                @foreach (var p in products.Where(x => x.RecipeId == selectedRecipeId))
+                                {
+                                    <option value="@p.Id">@p.Name (SKU: @p.Sku) - vinculado</option>
+                                }
+                                @* Depois os demais produtos sem receita *@
+                                @foreach (var p in products.Where(x => string.IsNullOrEmpty(x.RecipeId)))
+                                {
+                                    <option value="@p.Id">@p.Name (SKU: @p.Sku)</option>
+                                }
+                            }
+                        </select>
+                        @if (products?.Any(x => x.RecipeId == selectedRecipeId) != true)
+                        {
+                            <small class="text-warning">Nenhum produto vinculado a esta receita. <a href="/products/new">Crie um produto</a> e vincule esta receita.</small>
+                        }
+                    </div>
+                }
+
+                <div class="col-md-2 mb-3">
+                    <label class="form-label fw-semibold">Lotes a produzir</label>
+                    <input type="number" class="form-control" @bind="quantity" min="1" />
+                    @if (selectedRecipe is not null)
+                    {
+                        <small class="text-muted">Rende @selectedRecipe.YieldQuantity un/lote</small>
+                    }
+                </div>
+                <div class="col-md-2 mb-3 d-flex align-items-end">
+                    <button class="btn btn-success w-100" @onclick="Produce" disabled="@producing">
+                        @if (producing) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-gear me-1"></i>Produzir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (selectedRecipe is not null && selectedRecipe.Ingredients.Any())
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    Receita: <strong>@selectedRecipe.Name</strong>
+                    <span class="text-muted ms-2">| Custo/un: @selectedRecipe.CostPerUnit.ToString("C", ptBR)</span>
+                    @if (selectedRecipe.IsInsumo)
+                    {
+                        <span class="badge bg-info ms-2">Gera Insumo</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-success ms-2">Gera Produto</span>
+                    }
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Ingrediente</th>
+                            <th>Tipo</th>
+                            <th class="text-end">Qtde/lote</th>
+                            <th class="text-end">Qtde para @quantity lote(s)</th>
+                            <th class="text-end">Custo Unit.</th>
+                            <th class="text-end">Custo Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in selectedRecipe.Ingredients)
+                        {
+                            <tr>
+                                <td>@r.InsumoName <code class="ms-1">@r.InsumoCode</code></td>
+                                <td><span class="badge @(r.IsRecipe ? "bg-info" : "bg-secondary")">@(r.IsRecipe ? "Receita" : "Insumo")</span></td>
+                                <td class="text-end">@r.Quantity.ToString("N0") @r.Unit</td>
+                                <td class="text-end">@((r.Quantity * quantity).ToString("N0")) @r.Unit</td>
+                                <td class="text-end">@r.UnitCost.ToString("C4", ptBR)/@r.Unit</td>
+                                <td class="text-end">@((r.TotalCost * quantity).ToString("C", ptBR))</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr class="fw-bold">
+                            <td colspan="5" class="text-end">Total: @quantity lote(s) = @(quantity * selectedRecipe.YieldQuantity) unidades</td>
+                            <td class="text-end">@((selectedRecipe.CalculatedCost * quantity).ToString("C", ptBR))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        @if (selectedRecipe.Steps.Any())
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold"><i class="bi bi-list-ol me-1"></i>Modo de Preparo</div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        @foreach (var step in selectedRecipe.Steps.OrderBy(s => s.Order))
+                        {
+                            <div class="list-group-item border-0 d-flex align-items-start px-0">
+                                <span class="badge bg-primary rounded-pill me-3 mt-1">@step.Order</span>
+                                <span>@step.Description</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private List<RecipeDto>? recipes;
+    private List<ProductDto>? products;
+    private List<InsumoDto>? insumos;
+    private string selectedRecipeId = "";
+    private string selectedProductId = "";
+    private RecipeDto? selectedRecipe;
+    private string outputInsumoName = "";
+    private int quantity = 1;
+    private bool loading = true;
+    private bool producing;
+    private string? alertMessage;
+    private string alertTitle = "";
+    private string alertType = "error";
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            recipes = await Api.GetAsync<List<RecipeDto>>("api/recipes") ?? [];
+            products = await Api.GetAsync<List<ProductDto>>("api/products") ?? [];
+            insumos = await Api.GetAsync<List<InsumoDto>>("api/insumos") ?? [];
+        }
+        catch { }
+        finally { loading = false; }
+    }
+
+    private async Task OnRecipeSelected()
+    {
+        selectedRecipe = null;
+        selectedProductId = "";
+        outputInsumoName = "";
+
+        if (!string.IsNullOrEmpty(selectedRecipeId))
+        {
+            try
+            {
+                selectedRecipe = await Api.GetAsync<RecipeDto>($"api/recipes/{selectedRecipeId}");
+                if (selectedRecipe is not null && selectedRecipe.IsInsumo && !string.IsNullOrEmpty(selectedRecipe.OutputInsumoId))
+                {
+                    var insumo = insumos?.FirstOrDefault(i => i.Id == selectedRecipe.OutputInsumoId);
+                    outputInsumoName = insumo?.Name ?? "(insumo nao encontrado)";
+                }
+                else if (selectedRecipe is not null && !selectedRecipe.IsInsumo)
+                {
+                    // Auto-select linked product
+                    var linked = products?.FirstOrDefault(p => p.RecipeId == selectedRecipeId);
+                    if (linked is not null)
+                        selectedProductId = linked.Id;
+                }
+            }
+            catch { }
+        }
+    }
+
+    private async Task Produce()
+    {
+        if (selectedRecipe is null)
+        {
+            ShowAlert("Selecione uma receita.", "Atencao", "warning");
+            return;
+        }
+        if (quantity <= 0)
+        {
+            ShowAlert("Quantidade deve ser maior que zero.", "Atencao", "warning");
+            return;
+        }
+        if (!selectedRecipe.IsInsumo && string.IsNullOrEmpty(selectedProductId))
+        {
+            ShowAlert("Selecione o produto de destino.", "Atencao", "warning");
+            return;
+        }
+
+        producing = true;
+        alertMessage = null;
+
+        try
+        {
+            var payload = new { quantity, productId = selectedRecipe.IsInsumo ? (string?)null : selectedProductId };
+
+            var (data, error) = await Api.PostWithErrorAsync<object, ProduceResultDto>(
+                $"api/recipes/{selectedRecipeId}/produce",
+                payload);
+
+            if (data is not null)
+            {
+                var totalUnits = quantity * selectedRecipe.YieldQuantity;
+                if (selectedRecipe.IsInsumo)
+                {
+                    ShowAlert($"{totalUnits} unidade(s) adicionadas ao insumo '{outputInsumoName}'!", "Producao Realizada", "success");
+                }
+                else
+                {
+                    var productName = products?.FirstOrDefault(p => p.Id == selectedProductId)?.Name ?? "produto";
+                    ShowAlert($"{totalUnits} unidade(s) de '{productName}' adicionadas ao estoque para venda!", "Producao Realizada", "success");
+                }
+                quantity = 1;
+                // Refresh data
+                insumos = await Api.GetAsync<List<InsumoDto>>("api/insumos") ?? [];
+                await OnRecipeSelected();
+            }
+            else
+            {
+                ShowAlert(error ?? "Erro ao produzir.", "Erro", "error");
+            }
+        }
+        catch
+        {
+            ShowAlert("Erro ao conectar com o servidor.", "Erro", "error");
+        }
+        finally { producing = false; }
+    }
+
+    private void ShowAlert(string msg, string title, string type)
+    {
+        alertMessage = msg;
+        alertTitle = title;
+        alertType = type;
+    }
+
+    public class ProductDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public string? RecipeId { get; set; }
+        public bool HasRecipe { get; set; }
+    }
+
+    public class InsumoDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Code { get; set; } = "";
+    }
+
+    public class RecipeDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public decimal CalculatedCost { get; set; }
+        public int YieldQuantity { get; set; } = 1;
+        public decimal CostPerUnit { get; set; }
+        public bool IsInsumo { get; set; }
+        public string? OutputInsumoId { get; set; }
+        public bool IsActive { get; set; }
+        public List<IngredientDto> Ingredients { get; set; } = [];
+        public List<StepDto> Steps { get; set; } = [];
+    }
+
+    public class IngredientDto
+    {
+        public string InsumoName { get; set; } = "";
+        public string InsumoCode { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal UnitCost { get; set; }
+        public decimal TotalCost { get; set; }
+        public bool IsRecipe { get; set; }
+    }
+
+    public class StepDto
+    {
+        public int Order { get; set; }
+        public string Description { get; set; } = "";
+    }
+
+    public class ProduceResultDto
+    {
+        public string Message { get; set; } = "";
+        public int TotalUnits { get; set; }
+        public decimal TotalCost { get; set; }
+        public string OutputType { get; set; } = "";
+        public string OutputName { get; set; } = "";
+    }
+}

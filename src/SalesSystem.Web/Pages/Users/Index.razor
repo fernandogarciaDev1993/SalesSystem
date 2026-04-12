@@ -1,2 +1,91 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Usuarios - Lista
+@page "/users"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Usuarios - SalesSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Usuarios</h3>
+    <a href="/users/new" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Novo Usuario
+    </a>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Perfil</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (users?.Any() == true)
+                        {
+                            @foreach (var u in users)
+                            {
+                                <tr>
+                                    <td>@u.Name</td>
+                                    <td>@u.Email</td>
+                                    <td><span class="badge bg-info">@u.Role</span></td>
+                                    <td>
+                                        <span class="badge @(u.IsActive ? "bg-success" : "bg-secondary")">
+                                            @(u.IsActive ? "Ativo" : "Inativo")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="text-center text-muted py-4">Nenhum usuario encontrado.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserDto>? users;
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try { users = await Api.GetAsync<List<UserDto>>("api/users") ?? []; }
+        catch { }
+        finally { loading = false; }
+    }
+
+    public class UserDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+}

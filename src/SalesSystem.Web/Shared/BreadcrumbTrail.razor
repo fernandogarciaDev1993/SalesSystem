@@ -1,2 +1,26 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: BreadcrumbTrail
+@* Breadcrumb trail component *@
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+        @foreach (var item in Items)
+        {
+            @if (item == Items.Last())
+            {
+                <li class="breadcrumb-item active" aria-current="page">@item.Label</li>
+            }
+            else
+            {
+                <li class="breadcrumb-item"><a href="@item.Href">@item.Label</a></li>
+            }
+        }
+    </ol>
+</nav>
+
+@code {
+    [Parameter] public List<BreadcrumbItem> Items { get; set; } = new();
+
+    public class BreadcrumbItem
+    {
+        public string Label { get; set; } = "";
+        public string Href { get; set; } = "";
+    }
+}

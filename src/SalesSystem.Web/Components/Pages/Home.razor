@@ -1,0 +1,260 @@
+@page "/"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Dashboard - SalesSystem</PageTitle>
+
+<h3 class="mb-4">Dashboard</h3>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+    </div>
+}
+else if (errorMessage is not null)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>@errorMessage
+    </div>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-box-seam text-primary fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Total Produtos</div>
+                            <div class="fs-4 fw-bold">@totalProducts</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-people text-success fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Total Clientes</div>
+                            <div class="fs-4 fw-bold">@totalCustomers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-cart3 text-warning fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Total Pedidos</div>
+                            <div class="fs-4 fw-bold">@totalOrders</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-cash-stack text-info fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Saldo Financeiro</div>
+                            <div class="fs-4 fw-bold">@financialBalance.ToString("C", new System.Globalization.CultureInfo("pt-BR"))</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">Pedidos Recentes</div>
+                <div class="card-body p-0">
+                    @if (recentOrders?.Any() == true)
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Numero</th>
+                                        <th>Cliente</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var order in recentOrders.Take(5))
+                                    {
+                                        <tr>
+                                            <td>@order.OrderNumber</td>
+                                            <td>@order.CustomerName</td>
+                                            <td><span class="badge @GetStatusBadge(order.Status)">@order.Status</span></td>
+                                            <td class="text-end">@order.Total.ToString("C", new System.Globalization.CultureInfo("pt-BR"))</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted p-3 mb-0">Nenhum pedido encontrado.</p>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">Resumo Financeiro</div>
+                <div class="card-body">
+                    @if (summary is not null)
+                    {
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <div class="text-success fw-bold fs-5">@summary.TotalReceitas.ToString("C", new System.Globalization.CultureInfo("pt-BR"))</div>
+                                <div class="text-muted small">Receitas</div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="text-danger fw-bold fs-5">@summary.TotalDespesas.ToString("C", new System.Globalization.CultureInfo("pt-BR"))</div>
+                                <div class="text-muted small">Despesas</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-warning fw-bold fs-5">@summary.Pendentes</div>
+                                <div class="text-muted small">Pendentes</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-danger fw-bold fs-5">@summary.Vencidos</div>
+                                <div class="text-muted small">Vencidos</div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">Sem dados financeiros.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool loading = true;
+    private string? errorMessage;
+    private int totalProducts;
+    private int totalCustomers;
+    private int totalOrders;
+    private decimal financialBalance;
+    private List<OrderDto>? recentOrders;
+    private FinancialSummaryDto? summary;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var productsTask = Api.GetAsync<List<ProductDto>>("api/products");
+            var customersTask = Api.GetAsync<List<CustomerDto>>("api/customers");
+            var ordersTask = Api.GetAsync<List<OrderDto>>("api/orders");
+            var now = DateTime.UtcNow;
+            var from = new DateTime(now.Year, now.Month, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            var summaryTask = Api.GetAsync<FinancialSummaryDto>($"api/financial/summary?from={from:yyyy-MM-ddTHH:mm:ss}&to={to:yyyy-MM-ddT23:59:59}");
+
+            await Task.WhenAll(productsTask, customersTask, ordersTask, summaryTask);
+
+            totalProducts = (await productsTask)?.Count ?? 0;
+            totalCustomers = (await customersTask)?.Count ?? 0;
+            recentOrders = await ordersTask;
+            totalOrders = recentOrders?.Count ?? 0;
+            summary = await summaryTask;
+            financialBalance = summary?.Saldo ?? 0;
+        }
+        catch
+        {
+            errorMessage = "Nao foi possivel conectar a API.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Rascunho" => "bg-secondary",
+        "Confirmado" => "bg-primary",
+        "Faturado" => "bg-success",
+        "Cancelado" => "bg-danger",
+        "Devolvido" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    // Lightweight DTOs for JSON deserialization
+    public class ProductDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public decimal SalePrice { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public class CustomerDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Document { get; set; } = "";
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string Type { get; set; } = "";
+    }
+
+    public class OrderDto
+    {
+        public string Id { get; set; } = "";
+        public string OrderNumber { get; set; } = "";
+        public string CustomerName { get; set; } = "";
+        public string Status { get; set; } = "";
+        public decimal Total { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class FinancialSummaryDto
+    {
+        public decimal TotalReceitas { get; set; }
+        public decimal TotalDespesas { get; set; }
+        public decimal Saldo { get; set; }
+        public int Pendentes { get; set; }
+        public int Vencidos { get; set; }
+    }
+}

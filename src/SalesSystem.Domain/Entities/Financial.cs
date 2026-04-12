@@ -4,6 +4,7 @@ namespace SalesSystem.Domain.Entities;
 
 public class FinancialEntry : BaseEntity
 {
+    [BsonElement("code")]             public string            Code             { get; set; } = string.Empty;
     [BsonElement("type")]             public FinancialType     Type             { get; set; }
     [BsonElement("category")]         public FinancialCategory Category         { get; set; }
     [BsonElement("description")]      public string            Description      { get; set; } = string.Empty;
@@ -28,4 +29,4 @@ public class FinancialEntry : BaseEntity
 
 public enum FinancialType     { Receita, Despesa }
 public enum FinancialStatus   { Pendente, Pago, Vencido, Cancelado }
-public enum FinancialCategory { Venda, Compra, FolhaPagamento, Aluguel, Imposto, Servico, Marketing, Logistica, Outro }
+public enum FinancialCategory { Venda, Compra, FolhaPagamento, Aluguel, Imposto, Servico, Marketing, Logistica, Outro, CaixaInicial, Gasolina, AporteFinanceiro }

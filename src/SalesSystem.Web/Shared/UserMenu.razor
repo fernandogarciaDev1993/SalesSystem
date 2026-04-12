@@ -1,2 +1,14 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: UserMenu
+@inject ApiService Api
+
+<div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-person-circle me-1"></i>
+        @(Api.UserName ?? "Usuario")
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><span class="dropdown-item-text text-muted small">@(Api.UserRole ?? "---")</span></li>
+        <li><hr class="dropdown-divider" /></li>
+        <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear me-2"></i>Configuracoes</a></li>
+        <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Sair</a></li>
+    </ul>
+</div>

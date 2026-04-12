@@ -1,2 +1,17 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Logout
+@page "/logout"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Logout - SalesSystem</PageTitle>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.LogoutAsync();
+            Nav.NavigateTo("/login", true);
+        }
+    }
+}

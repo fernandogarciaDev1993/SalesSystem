@@ -1,2 +1,196 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Estoque
+@page "/stock"
+@rendermode InteractiveServer
+@inject ApiService Api
+
+<PageTitle>Estoque - SalesSystem</PageTitle>
+
+<h3 class="mb-4">Estoque Geral</h3>
+
+@if (loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <!-- INSUMOS -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-basket me-2"></i>Insumos (Materia-Prima)</h5>
+            <a href="/insumos" class="btn btn-sm btn-outline-primary">Gerenciar</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Nome</th>
+                            <th class="text-end">Estoque</th>
+                            <th class="text-end">Custo Medio</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (insumos?.Any() == true)
+                        {
+                            @foreach (var i in insumos)
+                            {
+                                var factor = i.Unit switch { "KG" => 1000, "LT" => 1000, _ => 1 };
+                                var baseUnit = i.Unit switch { "KG" => "g", "LT" => "ml", _ => i.Unit.ToLower() };
+                                <tr>
+                                    <td><code>@i.Code</code></td>
+                                    <td>@i.Name</td>
+                                    <td class="text-end">
+                                        @if (factor > 1 && i.CurrentStock >= factor)
+                                        {
+                                            @($"{(decimal)i.CurrentStock / factor:N2} {i.Unit}")
+                                        }
+                                        else
+                                        {
+                                            @($"{i.CurrentStock:N0} {baseUnit}")
+                                        }
+                                        @if (i.CurrentStock <= i.MinStock && i.CurrentStock > 0)
+                                        {
+                                            <i class="bi bi-exclamation-triangle text-warning ms-1"></i>
+                                        }
+                                        else if (i.CurrentStock == 0)
+                                        {
+                                            <i class="bi bi-x-circle text-danger ms-1"></i>
+                                        }
+                                    </td>
+                                    <td class="text-end">@((i.AverageCost * factor).ToString("C", ptBR))/@i.Unit</td>
+                                    <td>
+                                        @if (i.CurrentStock == 0)
+                                        {
+                                            <span class="badge bg-danger">Sem estoque</span>
+                                        }
+                                        else if (i.CurrentStock <= i.MinStock)
+                                        {
+                                            <span class="badge bg-warning text-dark">Baixo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">OK</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-3">Nenhum insumo cadastrado. <a href="/insumos/new">Cadastrar</a></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRODUTOS -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>Produtos (Para Venda)</h5>
+            <a href="/production" class="btn btn-sm btn-outline-success">Produzir</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>SKU</th>
+                            <th>Produto</th>
+                            <th class="text-end">Estoque</th>
+                            <th class="text-end">Disponivel</th>
+                            <th class="text-end">Custo Unit.</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (productBalances?.Any() == true)
+                        {
+                            @foreach (var b in productBalances)
+                            {
+                                <tr>
+                                    <td><code>@b.ProductSku</code></td>
+                                    <td>@b.ProductName</td>
+                                    <td class="text-end">@b.CurrentBalance.ToString("N0")</td>
+                                    <td class="text-end">@b.AvailableBalance.ToString("N0")</td>
+                                    <td class="text-end">@b.AverageCost.ToString("C", ptBR)</td>
+                                    <td>
+                                        @if (b.AvailableBalance <= b.MinBalance)
+                                        {
+                                            <span class="badge bg-danger">Baixo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">OK</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="6" class="text-center text-muted py-3">Nenhum produto em estoque. <a href="/production">Produzir</a></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<InsumoDto>? insumos;
+    private List<StockBalanceDto>? productBalances;
+    private bool loading = true;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            var t1 = Api.GetAsync<List<InsumoDto>>("api/insumos");
+            var t2 = Api.GetAsync<List<StockBalanceDto>>("api/stock/balances");
+            await Task.WhenAll(t1, t2);
+            insumos = t1.Result ?? [];
+            productBalances = t2.Result ?? [];
+        }
+        catch { }
+        finally { loading = false; }
+    }
+
+    public class InsumoDto
+    {
+        public string Id { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Unit { get; set; } = "KG";
+        public long CurrentStock { get; set; }
+        public long MinStock { get; set; }
+        public decimal AverageCost { get; set; }
+    }
+
+    public class StockBalanceDto
+    {
+        public string ProductId { get; set; } = "";
+        public string ProductName { get; set; } = "";
+        public string ProductSku { get; set; } = "";
+        public decimal CurrentBalance { get; set; }
+        public decimal AvailableBalance { get; set; }
+        public decimal MinBalance { get; set; }
+        public decimal AverageCost { get; set; }
+        public string Unit { get; set; } = "UN";
+    }
+}

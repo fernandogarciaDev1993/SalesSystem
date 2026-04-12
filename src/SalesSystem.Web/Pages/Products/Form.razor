@@ -1,2 +1,387 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Produtos - Formulario
+@page "/products/new"
+@page "/products/{Id}/edit"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>@(IsEdit ? "Editar" : "Novo") Produto - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/products" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0">@(IsEdit ? "Editar" : "Novo") Produto</h3>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="productForm">
+
+                <!-- Nome -->
+                <div class="mb-3">
+                    <label class="form-label">Nome *</label>
+                    <InputText @bind-Value="model.Name" class="form-control" />
+                </div>
+
+                <!-- Descricao -->
+                <div class="mb-3">
+                    <label class="form-label">Descricao</label>
+                    <InputTextArea @bind-Value="model.Description" class="form-control" rows="2" />
+                </div>
+
+                <!-- Tipo de produto -->
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Tipo de produto</label>
+                    <div class="d-flex gap-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="tipoProduzido" name="tipoProduto"
+                                   checked="@(productType == "produzido")" @onchange="@(e => OnProductTypeChanged("produzido"))" />
+                            <label class="form-check-label" for="tipoProduzido">
+                                Produzido (receita)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="tipoRevenda" name="tipoProduto"
+                                   checked="@(productType == "revenda")" @onchange="@(e => OnProductTypeChanged("revenda"))" />
+                            <label class="form-check-label" for="tipoRevenda">
+                                Revenda (insumo)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="tipoSemVinculo" name="tipoProduto"
+                                   checked="@(productType == "nenhum")" @onchange="@(e => OnProductTypeChanged("nenhum"))" />
+                            <label class="form-check-label" for="tipoSemVinculo">
+                                Sem vinculo
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seletor de receita -->
+                @if (productType == "produzido")
+                {
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Receita</label>
+                            <select class="form-select" value="@model.RecipeId" @onchange="OnRecipeSelectChanged">
+                                <option value="">Selecione uma receita...</option>
+                                @if (recipes is not null)
+                                {
+                                    @foreach (var r in recipes.Where(x => !x.IsInsumo && x.IsActive))
+                                    {
+                                        <option value="@r.Id">@r.Name (custo/un: @r.CostPerUnit.ToString("C", ptBR) | rende @r.YieldQuantity un)</option>
+                                    }
+                                }
+                            </select>
+                            @if (recipes?.Any(x => !x.IsInsumo && x.IsActive) != true)
+                            {
+                                <small class="text-danger">Nenhuma receita de produto cadastrada. <a href="/recipes/new">Crie uma receita primeiro.</a></small>
+                            }
+                            @if (selectedRecipe is not null)
+                            {
+                                <small class="text-muted">
+                                    Custo da receita: @selectedRecipe.CostPerUnit.ToString("C", ptBR) por unidade
+                                    (@selectedRecipe.IngredientCount ingrediente(s), rendimento: @selectedRecipe.YieldQuantity)
+                                </small>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (productType == "revenda")
+                {
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Insumo vinculado (estoque de compra)</label>
+                            <select class="form-select" @bind="model.InsumoId">
+                                <option value="">Selecione um insumo...</option>
+                                @if (insumos is not null)
+                                {
+                                    @foreach (var i in insumos)
+                                    {
+                                        <option value="@i.Id">@i.Name (@i.Code)</option>
+                                    }
+                                }
+                            </select>
+                            <small class="text-muted">
+                                O estoque deste produto sera controlado diretamente pelo insumo selecionado.
+                            </small>
+                        </div>
+                    </div>
+                }
+
+                <!-- Formacao de Preco -->
+                <div class="card border mb-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Formacao de Preco</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Custo Unitario (R$)</label>
+                                <InputNumber @bind-Value="model.CostPrice" class="form-control" disabled="@(productType == "produzido" && !string.IsNullOrEmpty(model.RecipeId))"
+                                             @bind-Value:after="RecalculatePrice" />
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Custos Operacionais (%)</label>
+                                <InputNumber @bind-Value="model.OperationalCostPct" class="form-control"
+                                             @bind-Value:after="RecalculatePrice" />
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Margem de Lucro (%)</label>
+                                <InputNumber @bind-Value="model.ProfitMarginPct" class="form-control"
+                                             @bind-Value:after="RecalculatePrice" />
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Impostos (%)</label>
+                                <InputNumber @bind-Value="model.TaxRate" class="form-control"
+                                             @bind-Value:after="RecalculatePrice" />
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Preco de Venda Calculado</label>
+                                <input type="text" class="form-control" readonly value="@CalculatedSalePrice.ToString("C", ptBR)" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Preco de Venda Final *</label>
+                                <InputNumber @bind-Value="model.SalePrice" class="form-control" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Preco Minimo</label>
+                                <InputNumber @bind-Value="model.MinSalePrice" class="form-control" />
+                            </div>
+                        </div>
+
+                        @if (model.CostPrice > 0 && CalculatedSalePrice > 0)
+                        {
+                            <div class="alert alert-info py-2 mb-0">
+                                <small>
+                                    <strong>Composicao do preco:</strong>
+                                    Custo: @model.CostPrice.ToString("C", ptBR)
+                                    + Operacional (@model.OperationalCostPct%): @((CalculatedSalePrice * model.OperationalCostPct / 100m).ToString("C", ptBR))
+                                    + Lucro (@model.ProfitMarginPct%): @((CalculatedSalePrice * model.ProfitMarginPct / 100m).ToString("C", ptBR))
+                                    + Impostos (@model.TaxRate%): @((CalculatedSalePrice * model.TaxRate / 100m).ToString("C", ptBR))
+                                    = @CalculatedSalePrice.ToString("C", ptBR)
+                                </small>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Unidade -->
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Unidade</label>
+                        <InputSelect @bind-Value="model.Unit" class="form-select">
+                            <option value="UN">UN</option>
+                            <option value="KG">KG</option>
+                            <option value="CX">CX</option>
+                            <option value="LT">LT</option>
+                            <option value="MT">MT</option>
+                            <option value="PC">PC</option>
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <!-- Botoes -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@saving">
+                        @if (saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(IsEdit ? "Salvar" : "Cadastrar")
+                    </button>
+                    <a href="/products" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private bool IsEdit => !string.IsNullOrEmpty(Id);
+    private ProductModel model = new();
+    private List<RecipeOptionDto>? recipes;
+    private List<InsumoOptionDto>? insumos;
+    private string productType = "nenhum";
+    private bool loading;
+    private bool saving;
+    private string? errorMessage;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    private RecipeOptionDto? selectedRecipe => recipes?.FirstOrDefault(r => r.Id == model.RecipeId);
+
+    private decimal CalculatedSalePrice
+    {
+        get
+        {
+            if (model.CostPrice <= 0) return 0;
+            var divisor = 1m - (model.OperationalCostPct / 100m) - (model.ProfitMarginPct / 100m) - (model.TaxRate / 100m);
+            return divisor > 0 ? Math.Round(model.CostPrice / divisor, 2) : 0;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            recipes = await Api.GetAsync<List<RecipeOptionDto>>("api/recipes");
+            insumos = await Api.GetAsync<List<InsumoOptionDto>>("api/insumos");
+
+            if (IsEdit)
+            {
+                var product = await Api.GetAsync<ProductModel>($"api/products/{Id}");
+                if (product is not null)
+                {
+                    model = product;
+                    if (!string.IsNullOrEmpty(model.InsumoId))
+                        productType = "revenda";
+                    else if (!string.IsNullOrEmpty(model.RecipeId))
+                        productType = "produzido";
+                    else
+                        productType = "nenhum";
+                }
+                else errorMessage = "Produto nao encontrado.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar dados.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void OnProductTypeChanged(string type)
+    {
+        productType = type;
+        if (type == "produzido")
+        {
+            model.InsumoId = null;
+        }
+        else if (type == "revenda")
+        {
+            model.RecipeId = null;
+        }
+        else
+        {
+            model.RecipeId = null;
+            model.InsumoId = null;
+        }
+    }
+
+    private void OnRecipeSelectChanged(ChangeEventArgs e)
+    {
+        model.RecipeId = e.Value?.ToString();
+        OnRecipeChanged();
+    }
+
+    private void OnRecipeChanged()
+    {
+        var recipe = recipes?.FirstOrDefault(r => r.Id == model.RecipeId);
+        if (recipe is not null)
+        {
+            model.CostPrice = recipe.CostPerUnit;
+            RecalculatePrice();
+        }
+    }
+
+    private void RecalculatePrice()
+    {
+        model.SalePrice = CalculatedSalePrice;
+        model.MinSalePrice = model.CostPrice > 0 ? model.CostPrice : model.MinSalePrice;
+    }
+
+    private async Task HandleSubmit()
+    {
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (IsEdit)
+            {
+                var result = await Api.PutAsync<ProductModel, ProductModel>($"api/products/{Id}", model);
+                if (result is not null) Nav.NavigateTo("/products");
+                else errorMessage = "Erro ao atualizar produto.";
+            }
+            else
+            {
+                var result = await Api.PostAsync<ProductModel, ProductModel>("api/products", model);
+                if (result is not null) Nav.NavigateTo("/products");
+                else errorMessage = "Erro ao cadastrar produto.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao salvar produto.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public class ProductModel
+    {
+        public string Id { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public decimal CostPrice { get; set; }
+        public decimal SalePrice { get; set; }
+        public decimal MinSalePrice { get; set; }
+        public string Unit { get; set; } = "UN";
+        public decimal TaxRate { get; set; }
+        public decimal OperationalCostPct { get; set; }
+        public decimal ProfitMarginPct { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string? RecipeId { get; set; }
+        public string? InsumoId { get; set; }
+    }
+
+    public class RecipeOptionDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public decimal CostPerUnit { get; set; }
+        public int YieldQuantity { get; set; }
+        public List<object>? Ingredients { get; set; }
+        public bool IsInsumo { get; set; }
+        public bool IsActive { get; set; }
+
+        public int IngredientCount => Ingredients?.Count ?? 0;
+    }
+
+    public class InsumoOptionDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Code { get; set; } = "";
+    }
+}

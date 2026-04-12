@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY SalesSystem.sln .
+COPY src/SalesSystem.Domain/SalesSystem.Domain.csproj src/SalesSystem.Domain/
+COPY src/SalesSystem.Application/SalesSystem.Application.csproj src/SalesSystem.Application/
+COPY src/SalesSystem.Infrastructure/SalesSystem.Infrastructure.csproj src/SalesSystem.Infrastructure/
+COPY src/SalesSystem.Api/SalesSystem.Api.csproj src/SalesSystem.Api/
+RUN dotnet restore src/SalesSystem.Api/SalesSystem.Api.csproj
+
+COPY src/ src/
+RUN dotnet publish src/SalesSystem.Api/SalesSystem.Api.csproj -c Release -o /app --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0
+WORKDIR /app
+COPY --from=build /app .
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENTRYPOINT ["dotnet", "SalesSystem.Api.dll"]

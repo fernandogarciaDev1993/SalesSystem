@@ -1,0 +1,699 @@
+@page "/recipes/new"
+@page "/recipes/{Id}/edit"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>@(IsEdit ? "Editar" : "Nova") Receita - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/recipes" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0">@(IsEdit ? "Editar" : "Nova") Receita</h3>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+    <AlertModal Visible="successMessage is not null" Message="@(successMessage ?? "")" Title="Sucesso" Type="success" OnClose="() => successMessage = null" />
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">Dados da Receita</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Nome *</label>
+                    <input type="text" class="form-control" @bind="model.Name" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Rendimento (unidades)</label>
+                    <input type="number" class="form-control" @bind="model.YieldQuantity" min="1" />
+                </div>
+                <div class="col-md-3 mb-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isInsumo" @bind="model.IsInsumo" />
+                        <label class="form-check-label" for="isInsumo">
+                            Usar como insumo em outras receitas
+                        </label>
+                    </div>
+                </div>
+            </div>
+            @if (model.IsInsumo)
+            {
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Insumo de destino (estoque da producao)</label>
+                        <select class="form-select" @bind="model.OutputInsumoId">
+                            <option value="">(Auto-criar novo insumo ao salvar)</option>
+                            @if (availableInsumos is not null)
+                            {
+                                @foreach (var i in availableInsumos)
+                                {
+                                    <option value="@i.Id">@i.Name (@i.Code)</option>
+                                }
+                            }
+                        </select>
+                        <small class="text-muted">
+                            Selecione um insumo existente ou deixe em branco para criar automaticamente.
+                        </small>
+                    </div>
+                </div>
+            }
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Categoria</label>
+                    <select class="form-select" @bind="model.Category">
+                        <option value="">Selecione...</option>
+                        @foreach (var cat in recipeCategories)
+                        {
+                            <option value="@cat">@cat</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Descricao</label>
+                <textarea class="form-control" @bind="model.Description" rows="2"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">Adicionar Ingrediente</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Buscar ingrediente</label>
+                <input type="text" class="form-control" @bind="ingredientSearch" @bind:event="oninput"
+                       placeholder="Digite para buscar..." />
+            </div>
+
+            @if (!string.IsNullOrEmpty(ingredientSearch) && ingredientSearch.Length >= 2)
+            {
+                var search = ingredientSearch.ToLower();
+                var filteredInsumos = ingredientOptions?.Where(i => i.Type == "insumo" && i.Name.ToLower().Contains(search)).ToList();
+                var filteredRecipes = ingredientOptions?.Where(i => i.Type == "recipe" && i.Name.ToLower().Contains(search)).ToList();
+
+                <div class="border rounded p-2 mb-3" style="max-height: 300px; overflow-y: auto;">
+                    @if (filteredInsumos?.Any() == true)
+                    {
+                        <h6 class="text-muted small mb-2"><i class="bi bi-basket me-1"></i>INSUMOS</h6>
+                        @foreach (var item in filteredInsumos)
+                        {
+                            <button class="btn btn-sm btn-outline-primary me-1 mb-1"
+                                @onclick="() => SelectIngredient(item)">
+                                @item.Name <small class="text-muted">(@item.Code) - @FormatCost(item)</small>
+                            </button>
+                        }
+                    }
+
+                    @if (filteredRecipes?.Any() == true)
+                    {
+                        <h6 class="text-muted small mb-2 mt-2"><i class="bi bi-journal-text me-1"></i>RECEITAS</h6>
+                        @foreach (var item in filteredRecipes)
+                        {
+                            <button class="btn btn-sm btn-outline-success me-1 mb-1"
+                                @onclick="() => SelectIngredient(item)">
+                                @item.Name <small class="text-muted">(@item.Code) - @item.AverageCost.ToString("C", ptBR)/un</small>
+                            </button>
+                        }
+                    }
+
+                    @if (filteredInsumos?.Any() != true && filteredRecipes?.Any() != true)
+                    {
+                        <p class="text-muted small mb-0">Nenhum ingrediente encontrado.</p>
+                    }
+                </div>
+            }
+
+            @if (selectedIngredient is not null)
+            {
+                <div class="row">
+                    <div class="col-md-5 mb-3">
+                        <label class="form-label">Ingrediente selecionado</label>
+                        <div class="form-control bg-light">
+                            @selectedIngredient.Name
+                            <span class="badge @(selectedIngredient.Type == "recipe" ? "bg-info" : "bg-secondary") ms-1">
+                                @(selectedIngredient.Type == "recipe" ? "Receita" : "Insumo")
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Quantidade (@SelectedBaseUnit)</label>
+                        <input type="number" class="form-control" @bind="selectedQuantity" min="1" step="1" />
+                        <small class="text-muted">@QuantityHelpText</small>
+                    </div>
+                    <div class="col-md-4 mb-3 d-flex align-items-end">
+                        <button class="btn btn-primary me-1" @onclick="AddIngredient">
+                            <i class="bi bi-plus-lg me-1"></i>Adicionar
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="ClearIngredientSelection">
+                            Limpar
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">Ingredientes da Receita</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Ingrediente</th>
+                            <th>Codigo</th>
+                            <th>Tipo</th>
+                            <th class="text-end">Qtde</th>
+                            <th>Unidade</th>
+                            <th class="text-end">Custo Unit.</th>
+                            <th class="text-end">Custo Total</th>
+                            <th class="text-center">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (ingredients.Any())
+                        {
+                            @foreach (var item in ingredients)
+                            {
+                                <tr>
+                                    <td>@item.InsumoName</td>
+                                    <td><code>@item.InsumoCode</code></td>
+                                    <td>
+                                        <span class="badge @(item.IsRecipe ? "bg-info" : "bg-secondary")">
+                                            @(item.IsRecipe ? "Receita" : "Insumo")
+                                        </span>
+                                    </td>
+                                    <td class="text-end">@item.Quantity.ToString("N3")</td>
+                                    <td>@item.Unit</td>
+                                    <td class="text-end">@item.UnitCost.ToString("C", ptBR)</td>
+                                    <td class="text-end">@item.TotalCost.ToString("C", ptBR)</td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveIngredient(item)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            <tr class="table-warning fw-semibold">
+                                <td colspan="6" class="text-end">Custo Total da Receita:</td>
+                                <td class="text-end">@TotalCost.ToString("C", ptBR)</td>
+                                <td></td>
+                            </tr>
+                            <tr class="table-info fw-semibold">
+                                <td colspan="6" class="text-end">Custo por Unidade (÷ @model.YieldQuantity):</td>
+                                <td class="text-end">@CostPerUnit.ToString("C", ptBR)</td>
+                                <td></td>
+                            </tr>
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">Nenhum ingrediente adicionado.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODO DE PREPARO -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">
+            <i class="bi bi-list-ol me-1"></i>Modo de Preparo
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-10">
+                    <input type="text" class="form-control" @bind="newStepText" placeholder="Descreva o passo (ex: Misturar os ingredientes secos)" @onkeydown="HandleStepKeyDown" />
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" @onclick="AddStep">
+                        <i class="bi bi-plus-lg me-1"></i>Adicionar
+                    </button>
+                </div>
+            </div>
+
+            @if (steps.Any())
+            {
+                <div class="list-group">
+                    @foreach (var step in steps.OrderBy(s => s.Order))
+                    {
+                        <div class="list-group-item d-flex align-items-center">
+                            <span class="badge bg-primary rounded-pill me-3">@step.Order</span>
+                            <span class="flex-grow-1">@step.Description</span>
+                            <div class="btn-group btn-group-sm ms-2">
+                                @if (step.Order > 1)
+                                {
+                                    <button class="btn btn-outline-secondary" @onclick="() => MoveStep(step, -1)" title="Subir">
+                                        <i class="bi bi-arrow-up"></i>
+                                    </button>
+                                }
+                                @if (step.Order < steps.Count)
+                                {
+                                    <button class="btn btn-outline-secondary" @onclick="() => MoveStep(step, 1)" title="Descer">
+                                        <i class="bi bi-arrow-down"></i>
+                                    </button>
+                                }
+                                <button class="btn btn-outline-danger" @onclick="() => RemoveStep(step)" title="Remover">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted small mb-0">Nenhum passo adicionado. Descreva como preparar esta receita.</p>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" @onclick="Save" disabled="@saving">
+            @if (saving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            @(IsEdit ? "Salvar" : "Cadastrar")
+        </button>
+        @if (IsEdit)
+        {
+            <button class="btn btn-outline-secondary" @onclick="Recalculate" disabled="@recalculating">
+                @if (recalculating)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                Recalcular Custos
+            </button>
+        }
+        <a href="/recipes" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private bool IsEdit => !string.IsNullOrEmpty(Id);
+    private RecipeModel model = new();
+    private List<IngredientOptionDto>? ingredientOptions;
+    private List<InsumoOptionDto>? availableInsumos;
+    private List<IngredientItem> ingredients = [];
+    private List<StepItem> steps = [];
+    private string newStepText = "";
+    private bool loading;
+    private bool saving;
+    private bool recalculating;
+    private string? errorMessage;
+    private string? successMessage;
+    private string ingredientSearch = "";
+    private IngredientOptionDto? selectedIngredient;
+    private decimal selectedQuantity;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+    private static readonly List<string> recipeCategories =
+    [
+        "Prato Principal", "Acompanhamento", "Sobremesa", "Bebida", "Molho",
+        "Salada", "Entrada", "Lanche", "Sopa", "Base", "Outro"
+    ];
+
+    private decimal TotalCost => ingredients.Sum(i => i.TotalCost);
+    private decimal CostPerUnit => model.YieldQuantity > 0 ? TotalCost / model.YieldQuantity : TotalCost;
+
+    private string SelectedBaseUnit => selectedIngredient?.BaseUnit ?? "un";
+
+    private string QuantityHelpText
+    {
+        get
+        {
+            var opt = selectedIngredient;
+            if (opt is null) return "";
+            if (opt.Type == "recipe") return "Quantidade de unidades da sub-receita";
+            return opt.Unit switch
+            {
+                "KG" => "Ex: 600 = 600 gramas (0,6 KG)",
+                "LT" => "Ex: 200 = 200 ml (0,2 LT)",
+                _ => $"Quantidade em {opt.BaseUnit}"
+            };
+        }
+    }
+
+    private void SelectIngredient(IngredientOptionDto item)
+    {
+        selectedIngredient = item;
+        ingredientSearch = item.Name;
+    }
+
+    private void ClearIngredientSelection()
+    {
+        selectedIngredient = null;
+        ingredientSearch = "";
+        selectedQuantity = 0;
+    }
+
+    private string FormatCost(IngredientOptionDto item)
+    {
+        if (item.Type == "recipe")
+            return $"{item.AverageCost.ToString("C", ptBR)}/un";
+        return $"{item.CostPerUserUnit.ToString("C", ptBR)}/{item.Unit}";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            ingredientOptions = await Api.GetAsync<List<IngredientOptionDto>>("api/recipes/ingredients");
+            availableInsumos = await Api.GetAsync<List<InsumoOptionDto>>("api/insumos");
+
+            if (IsEdit)
+            {
+                var recipe = await Api.GetAsync<RecipeDetailDto>($"api/recipes/{Id}");
+                if (recipe is not null)
+                {
+                    model.Name = recipe.Name;
+                    model.Description = recipe.Description;
+                    model.Category = recipe.Category ?? "";
+                    model.YieldQuantity = recipe.YieldQuantity;
+                    model.IsInsumo = recipe.IsInsumo;
+                    model.OutputInsumoId = recipe.OutputInsumoId;
+
+                    ingredients = recipe.Ingredients.Select(i => new IngredientItem
+                    {
+                        InsumoId = i.InsumoId,
+                        InsumoName = i.InsumoName,
+                        InsumoCode = i.InsumoCode,
+                        Quantity = i.Quantity,
+                        Unit = i.Unit,
+                        UnitCost = i.UnitCost,
+                        TotalCost = i.TotalCost,
+                        IsRecipe = i.IsRecipe
+                    }).ToList();
+
+                    steps = (recipe.Steps ?? []).Select(s => new StepItem
+                    {
+                        Order = s.Order,
+                        Description = s.Description
+                    }).ToList();
+                }
+                else
+                {
+                    errorMessage = "Receita nao encontrada.";
+                }
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar dados.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void AddIngredient()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (selectedIngredient is null)
+        {
+            errorMessage = "Selecione um ingrediente.";
+            return;
+        }
+        if (selectedQuantity <= 0)
+        {
+            errorMessage = "Quantidade deve ser maior que zero.";
+            return;
+        }
+
+        var option = selectedIngredient;
+        var type = option.Type;
+        var id = option.Id;
+
+        var existing = ingredients.FirstOrDefault(i => i.InsumoId == id && i.IsRecipe == (type == "recipe"));
+        if (existing is not null)
+        {
+            errorMessage = "Este ingrediente ja esta na receita. Remova-o primeiro para adicionar novamente.";
+            return;
+        }
+
+        // Prevent adding self as ingredient
+        if (IsEdit && type == "recipe" && id == Id)
+        {
+            errorMessage = "Uma receita nao pode usar a si mesma como ingrediente.";
+            return;
+        }
+
+        ingredients.Add(new IngredientItem
+        {
+            InsumoId = option.Id,
+            InsumoName = option.Name,
+            InsumoCode = option.Code,
+            Quantity = selectedQuantity,
+            Unit = option.BaseUnit ?? option.Unit,
+            UnitCost = option.AverageCost,
+            TotalCost = selectedQuantity * option.AverageCost,
+            IsRecipe = type == "recipe"
+        });
+
+        ClearIngredientSelection();
+    }
+
+    private void RemoveIngredient(IngredientItem item)
+    {
+        ingredients.Remove(item);
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private async Task Save()
+    {
+        saving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var payload = new
+            {
+                model.Name,
+                model.Description,
+                model.Category,
+                model.YieldQuantity,
+                model.IsInsumo,
+                model.OutputInsumoId,
+                Ingredients = ingredients.Select(i => new
+                {
+                    i.InsumoId,
+                    i.Quantity,
+                    i.IsRecipe
+                }).ToList(),
+                Steps = steps.OrderBy(s => s.Order).Select(s => new
+                {
+                    s.Order,
+                    s.Description
+                }).ToList()
+            };
+
+            if (IsEdit)
+            {
+                var (data, error) = await Api.PutWithErrorAsync<object, RecipeDetailDto>($"api/recipes/{Id}", payload);
+                if (data is not null)
+                    Nav.NavigateTo("/recipes");
+                else
+                    errorMessage = error ?? "Erro ao salvar receita.";
+            }
+            else
+            {
+                var (data, error) = await Api.PostWithErrorAsync<object, RecipeDetailDto>("api/recipes", payload);
+                if (data is not null)
+                    Nav.NavigateTo("/recipes");
+                else
+                    errorMessage = error ?? "Erro ao cadastrar receita.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao salvar receita.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task Recalculate()
+    {
+        recalculating = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await Api.PostAsync<object, RecipeDetailDto>($"api/recipes/{Id}/recalculate", new { });
+            if (result is not null)
+            {
+                successMessage = "Custos recalculados com sucesso!";
+                ingredients = result.Ingredients.Select(i => new IngredientItem
+                {
+                    InsumoId = i.InsumoId,
+                    InsumoName = i.InsumoName,
+                    InsumoCode = i.InsumoCode,
+                    Quantity = i.Quantity,
+                    Unit = i.Unit,
+                    UnitCost = i.UnitCost,
+                    TotalCost = i.TotalCost,
+                    IsRecipe = i.IsRecipe
+                }).ToList();
+            }
+            else
+            {
+                errorMessage = "Erro ao recalcular custos.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao recalcular custos.";
+        }
+        finally
+        {
+            recalculating = false;
+        }
+    }
+
+    public class RecipeModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string Category { get; set; } = "";
+        public int YieldQuantity { get; set; } = 1;
+        public bool IsInsumo { get; set; }
+        public string? OutputInsumoId { get; set; }
+    }
+
+    private void AddStep()
+    {
+        if (string.IsNullOrWhiteSpace(newStepText)) return;
+        steps.Add(new StepItem { Order = steps.Count + 1, Description = newStepText.Trim() });
+        newStepText = "";
+    }
+
+    private void HandleStepKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") AddStep();
+    }
+
+    private void RemoveStep(StepItem step)
+    {
+        steps.Remove(step);
+        ReorderSteps();
+    }
+
+    private void MoveStep(StepItem step, int direction)
+    {
+        var idx = steps.IndexOf(step);
+        var newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= steps.Count) return;
+        steps.RemoveAt(idx);
+        steps.Insert(newIdx, step);
+        ReorderSteps();
+    }
+
+    private void ReorderSteps()
+    {
+        for (var i = 0; i < steps.Count; i++)
+            steps[i].Order = i + 1;
+    }
+
+    public class StepItem
+    {
+        public int Order { get; set; }
+        public string Description { get; set; } = "";
+    }
+
+    public class IngredientItem
+    {
+        public string InsumoId { get; set; } = "";
+        public string InsumoName { get; set; } = "";
+        public string InsumoCode { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal UnitCost { get; set; }
+        public decimal TotalCost { get; set; }
+        public bool IsRecipe { get; set; }
+    }
+
+    public class IngredientOptionDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public string BaseUnit { get; set; } = "";
+        public decimal AverageCost { get; set; }
+        public decimal CostPerBaseUnit { get; set; }
+        public decimal CostPerUserUnit { get; set; }
+        public string Type { get; set; } = "insumo";
+    }
+
+    public class RecipeDetailDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string? Category { get; set; }
+        public List<IngredientDto> Ingredients { get; set; } = [];
+        public List<StepDto> Steps { get; set; } = [];
+        public decimal CalculatedCost { get; set; }
+        public int YieldQuantity { get; set; } = 1;
+        public decimal CostPerUnit { get; set; }
+        public bool IsInsumo { get; set; }
+        public string? OutputInsumoId { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public class InsumoOptionDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Code { get; set; } = "";
+    }
+
+    public class StepDto
+    {
+        public int Order { get; set; }
+        public string Description { get; set; } = "";
+    }
+
+    public class IngredientDto
+    {
+        public string InsumoId { get; set; } = "";
+        public string InsumoName { get; set; } = "";
+        public string InsumoCode { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal UnitCost { get; set; }
+        public decimal TotalCost { get; set; }
+        public bool IsRecipe { get; set; }
+    }
+}

@@ -1,2 +1,206 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Estilos globais
+/* Afeto no Pote - feito como em casa | Identidade Visual */
+
+:root {
+    --primary: #8B6F5C;
+    --primary-dark: #6B5245;
+    --primary-light: #F7F1ED;
+    --accent: #D94040;
+    --accent-light: #FCE8E8;
+    --sidebar-bg: #F2EAE4;
+    --sidebar-text: #5C4033;
+    --sidebar-active: #E8DDD5;
+    --topbar-bg: #FFFFFF;
+    --body-bg: #FAF7F5;
+    --success: #7BAF6E;
+    --danger: #D94040;
+    --warning: #D4A843;
+    --info: #8B9EAF;
+    --text-dark: #3D2E24;
+    --text-muted: #9C8B80;
+    --border: #E4DAD3;
+}
+
+html, body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: var(--body-bg);
+    color: var(--text-dark);
+}
+
+a, .btn-link {
+    color: var(--primary);
+}
+a:hover {
+    color: var(--primary-dark);
+}
+
+/* Botoes */
+.btn-primary {
+    color: #fff;
+    background-color: var(--primary);
+    border-color: var(--primary-dark);
+}
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+}
+.btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+.btn-outline-primary:hover {
+    background-color: var(--primary);
+    color: #fff;
+}
+.btn-success {
+    background-color: var(--success);
+    border-color: var(--success);
+}
+.btn-outline-success {
+    color: var(--success);
+    border-color: var(--success);
+}
+.btn-outline-success:hover {
+    background-color: var(--success);
+    color: #fff;
+}
+.btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+}
+.btn-outline-secondary {
+    color: var(--primary);
+    border-color: var(--border);
+}
+.btn-outline-secondary:hover {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    border-color: var(--primary);
+}
+
+/* Cards */
+.card {
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background-color: #FFFFFF;
+    box-shadow: 0 1px 4px rgba(60, 46, 36, 0.05);
+}
+.card-header {
+    background-color: #FDFBF9;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Tabelas */
+.table th {
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+    background-color: #FDFBF9;
+}
+.table td {
+    border-bottom: 1px solid #F0E9E3;
+}
+.table-hover tbody tr:hover {
+    background-color: var(--primary-light);
+}
+.table-light {
+    background-color: #FDFBF9 !important;
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+    border-radius: 0.5rem;
+}
+.bg-primary {
+    background-color: var(--primary) !important;
+}
+.bg-success {
+    background-color: var(--success) !important;
+}
+.bg-danger {
+    background-color: var(--danger) !important;
+}
+.bg-warning {
+    background-color: var(--warning) !important;
+}
+.bg-info {
+    background-color: var(--info) !important;
+}
+
+/* Formularios */
+.form-control, .form-select {
+    border: 2px solid #D4C8BE;
+    background-color: #FFFFFF;
+    border-radius: 0.5rem;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(139, 111, 92, 0.15);
+    background-color: #FFFEFB;
+}
+.form-control::placeholder {
+    color: #C4B8AE;
+}
+.form-control[readonly], .form-control:disabled {
+    border-color: #E4DAD3;
+    background-color: #F5F0EC;
+}
+.form-check-input:checked {
+    background-color: var(--accent);
+    border-color: var(--accent);
+}
+.form-label {
+    font-weight: 500;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+}
+
+/* Spinner */
+.spinner-border.text-primary {
+    color: var(--primary) !important;
+}
+
+/* Alertas */
+.alert-info {
+    background-color: var(--primary-light);
+    border-color: #E4DAD3;
+    color: var(--primary-dark);
+}
+.alert-success {
+    background-color: #EEF6EC;
+    border-color: #D0E8CA;
+    color: #3D6B33;
+}
+.alert-warning {
+    background-color: #FFF8EC;
+    border-color: #F0DFB8;
+    color: #7D5F1A;
+}
+
+/* Sidebar scrollbar */
+.sidebar-nav ::-webkit-scrollbar {
+    width: 6px;
+}
+.sidebar-nav ::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sidebar-nav ::-webkit-scrollbar-thumb {
+    background-color: rgba(92, 64, 51, 0.15);
+    border-radius: 3px;
+}
+.sidebar-nav ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(92, 64, 51, 0.3);
+}
+
+/* Links de navegacao sidebar */
+.nav-link:hover {
+    background-color: rgba(139, 111, 92, 0.1) !important;
+}
+
+/* Texto primario */
+.text-primary {
+    color: var(--primary) !important;
+}

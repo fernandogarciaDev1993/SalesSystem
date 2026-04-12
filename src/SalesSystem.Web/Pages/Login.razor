@@ -1,2 +1,80 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Login
+@page "/login"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Login - SalesSystem</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+    <div style="width: 100%; max-width: 400px;">
+        <div class="card border-0 shadow" style="border-radius: 1rem;">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <img src="images/logo.png" alt="Afeto no Pote" style="width: 100px;" />
+                    <p class="small mt-1" style="color: #8C7568;">Sistema de Gestao</p>
+                </div>
+
+                <AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+
+                <EditForm Model="model" OnValidSubmit="HandleLogin" FormName="loginForm">
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <InputText @bind-Value="model.Email" class="form-control" placeholder="admin@admin.com" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Senha</label>
+                        <InputText @bind-Value="model.Password" type="password" class="form-control" placeholder="Sua senha" />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" disabled="@loading">
+                        @if (loading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Entrar
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel model = new();
+    private bool loading;
+    private string? errorMessage;
+
+    private async Task HandleLogin()
+    {
+        loading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await Api.LoginAsync(model.Email, model.Password, model.TenantSubdomain);
+
+            if (result.Success)
+            {
+                Nav.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Email ou senha invalidos.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Erro ao conectar com o servidor.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string TenantSubdomain { get; set; } = "demo";
+    }
+}

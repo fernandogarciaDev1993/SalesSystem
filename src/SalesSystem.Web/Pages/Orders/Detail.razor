@@ -1,2 +1,84 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: Pedidos - Detalhe
+@page "/orders/{Id}"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Pedido - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/orders" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0">Detalhes do Pedido</h3>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else if (order is null)
+{
+    <AlertModal Visible="true" Message="Pedido nao encontrado." Title="Erro" Type="error" OnClose="GoBack" />
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3"><strong>Numero:</strong> @order.OrderNumber</div>
+                <div class="col-md-3"><strong>Status:</strong> <span class="badge @GetStatusBadge(order.Status)">@order.Status</span></div>
+                <div class="col-md-3"><strong>Cliente:</strong> @order.CustomerName</div>
+                <div class="col-md-3"><strong>Total:</strong> @order.Total.ToString("C", ptBR)</div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private OrderDetailDto? order;
+    private bool loading = true;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            order = await Api.GetAsync<OrderDetailDto>($"api/orders/{Id}");
+        }
+        catch { }
+        finally { loading = false; }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/orders");
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Rascunho" => "bg-secondary",
+        "Confirmado" => "bg-primary",
+        "Faturado" => "bg-success",
+        "Cancelado" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    public class OrderDetailDto
+    {
+        public string Id { get; set; } = "";
+        public string OrderNumber { get; set; } = "";
+        public string CustomerName { get; set; } = "";
+        public string Status { get; set; } = "";
+        public decimal Total { get; set; }
+    }
+}

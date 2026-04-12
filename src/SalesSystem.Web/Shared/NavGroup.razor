@@ -1,2 +1,13 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: NavGroup
+@* Shared NavGroup component for grouping navigation items *@
+<div class="mb-2">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <div class="px-3 py-1 text-uppercase text-white-50 small fw-bold">@Title</div>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

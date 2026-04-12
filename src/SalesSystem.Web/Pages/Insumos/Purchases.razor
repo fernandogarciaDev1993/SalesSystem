@@ -1,0 +1,355 @@
+@page "/insumos/{Id}/purchases"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Compras de Insumo - SalesSystem</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/insumos" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="mb-0">Compras de Insumo</h3>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else if (insumo is null)
+{
+    <AlertModal Visible="true" Message="Insumo nao encontrado." Title="Erro" Type="error" OnClose="GoBack" />
+}
+else
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h5>@insumo.Name <code>(@insumo.Code)</code></h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <small class="text-muted">Estoque Atual</small>
+                    <div class="fw-semibold">@insumo.CurrentStock.ToString("N2") @insumo.Unit</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Custo Medio</small>
+                    <div class="fw-semibold">@insumo.AverageCost.ToString("C", ptBR)</div>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted">Ultimo Custo</small>
+                    <div class="fw-semibold">@insumo.LastCost.ToString("C", ptBR)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold"><i class="bi bi-cart-plus me-1"></i>Registrar Compra</div>
+        <div class="card-body">
+            <AlertModal Visible="purchaseError is not null" Message="@(purchaseError ?? "")" Title="Erro" Type="error" OnClose="() => purchaseError = null" />
+            <AlertModal Visible="purchaseSuccess" Message="Compra registrada com sucesso!" Title="Sucesso" Type="success" OnClose="() => purchaseSuccess = false" />
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Qtde de embalagens *</label>
+                    <input type="number" class="form-control" @bind="purchaseModel.Quantity" min="1" step="1" />
+                    <small class="text-muted">Quantas embalagens comprou</small>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">@PackageSizeLabel *</label>
+                    <input type="number" class="form-control" @bind="purchaseModel.PackageSize" min="1" step="1" />
+                    <small class="text-muted">@PackageSizeHint</small>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Preco por embalagem (R$) *</label>
+                    <input type="number" class="form-control" @bind="purchaseModel.UnitCost" min="0.01" step="0.01" />
+                    <small class="text-muted">Quanto pagou por cada embalagem</small>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Observacao</label>
+                    <input type="text" class="form-control" @bind="purchaseModel.Note" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Resumo</label>
+                    <div class="form-control bg-light small" style="min-height: 38px;">
+                        @PurchaseSummary
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" @onclick="SubmitPurchase" disabled="@purchaseSaving">
+                        @if (purchaseSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Registrar Compra
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">Historico de Compras</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data</th>
+                            <th class="text-end">Qtde</th>
+                            <th class="text-end">Custo Unit.</th>
+                            <th class="text-end">Custo Total</th>
+                            <th class="text-end">Estoque Ant.</th>
+                            <th class="text-end">Estoque Novo</th>
+                            <th class="text-end">Custo Med. Ant.</th>
+                            <th class="text-end">Custo Med. Novo</th>
+                            <th>Obs.</th>
+                            <th class="text-center">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (purchases?.Any() == true)
+                        {
+                            @foreach (var p in purchases)
+                            {
+                                <tr>
+                                    <td>@p.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td class="text-end">@p.Quantity.ToString("N2")</td>
+                                    <td class="text-end">@p.UnitCost.ToString("C", ptBR)</td>
+                                    <td class="text-end">@p.TotalCost.ToString("C", ptBR)</td>
+                                    <td class="text-end">@p.PreviousStock.ToString("N2")</td>
+                                    <td class="text-end">@p.NewStock.ToString("N2")</td>
+                                    <td class="text-end">@p.PreviousAvgCost.ToString("C", ptBR)</td>
+                                    <td class="text-end">@p.NewAvgCost.ToString("C", ptBR)</td>
+                                    <td>@p.Note</td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(p)" title="Excluir compra">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">Nenhuma compra registrada.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<AlertModal Visible="deleteConfirmPurchase is not null"
+    Message="@($"Tem certeza que deseja excluir esta compra? O estoque sera revertido e o lancamento financeiro sera removido.")"
+    Title="Confirmar Exclusao" Type="warning"
+    OnClose="CancelDelete"
+    ConfirmText="Excluir"
+    OnConfirm="DeletePurchase" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private InsumoDto? insumo;
+    private List<PurchaseDto>? purchases;
+    private bool loading = true;
+    private PurchaseModel purchaseModel = new();
+    private bool purchaseSaving;
+    private string? purchaseError;
+    private bool purchaseSuccess;
+    private PurchaseDto? deleteConfirmPurchase;
+    private static readonly System.Globalization.CultureInfo ptBR = new("pt-BR");
+
+    private string UnitStr => insumo?.Unit ?? "KG";
+
+    private string PackageSizeLabel => UnitStr switch
+    {
+        "KG" => "Gramas por embalagem",
+        "LT" => "Mililitros por embalagem",
+        "ML" => "Mililitros por embalagem",
+        "GR" => "Gramas por embalagem",
+        "UN" => "Unidades por embalagem",
+        _ => "Conteudo por embalagem"
+    };
+
+    private string PackageSizeHint => UnitStr switch
+    {
+        "KG" => "Ex: pacote de 1kg = 1000",
+        "LT" => "Ex: garrafa de 1 litro = 1000",
+        "ML" => "Ex: frasco de 20ml = 20",
+        "GR" => "Ex: pacote de 500g = 500",
+        "UN" => "Ex: cartela de 20 ovos = 20",
+        _ => "Quantidade dentro da embalagem"
+    };
+
+    private string BaseUnitLabel => UnitStr switch
+    {
+        "KG" => "g",
+        "LT" => "ml",
+        "ML" => "ml",
+        "GR" => "g",
+        "UN" => "un",
+        "MT" => "m",
+        _ => UnitStr.ToLower()
+    };
+
+    private string PurchaseSummary
+    {
+        get
+        {
+            if (purchaseModel.Quantity <= 0 || purchaseModel.UnitCost <= 0 || purchaseModel.PackageSize <= 0) return "-";
+            var totalBaseUnits = (long)(purchaseModel.Quantity * purchaseModel.PackageSize);
+            var costPerBaseUnit = purchaseModel.UnitCost / purchaseModel.PackageSize;
+            var total = purchaseModel.Quantity * purchaseModel.UnitCost;
+            return $"{totalBaseUnits:N0} {BaseUnitLabel} em estoque | {costPerBaseUnit.ToString("C4", ptBR)}/{BaseUnitLabel} | Total: {total.ToString("C2", ptBR)}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/insumos");
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            insumo = await Api.GetAsync<InsumoDto>($"api/insumos/{Id}");
+            purchases = await Api.GetAsync<List<PurchaseDto>>($"api/insumos/{Id}/purchases") ?? [];
+        }
+        catch { }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SubmitPurchase()
+    {
+        purchaseError = null;
+        purchaseSuccess = false;
+
+        if (purchaseModel.Quantity <= 0)
+        {
+            purchaseError = "Informe a quantidade de embalagens.";
+            return;
+        }
+        if (purchaseModel.UnitCost <= 0)
+        {
+            purchaseError = "Informe o custo por embalagem.";
+            return;
+        }
+        if (purchaseModel.PackageSize <= 0)
+        {
+            purchaseError = "Informe o conteudo por embalagem.";
+            return;
+        }
+
+        purchaseSaving = true;
+
+        try
+        {
+            var payload = new
+            {
+                purchaseModel.Quantity,
+                purchaseModel.UnitCost,
+                purchaseModel.PackageSize,
+                purchaseModel.Note
+            };
+
+            var (result, error) = await Api.PostWithErrorAsync<object, PurchaseDto>($"api/insumos/{Id}/purchases", payload);
+            if (result is not null)
+            {
+                purchaseSuccess = true;
+                purchaseModel = new();
+                await LoadData();
+            }
+            else
+            {
+                purchaseError = error ?? "Erro ao registrar compra.";
+            }
+        }
+        catch
+        {
+            purchaseError = "Erro ao registrar compra.";
+        }
+        finally
+        {
+            purchaseSaving = false;
+        }
+    }
+
+    private void ConfirmDelete(PurchaseDto purchase) => deleteConfirmPurchase = purchase;
+    private void CancelDelete() => deleteConfirmPurchase = null;
+
+    private async Task DeletePurchase()
+    {
+        if (deleteConfirmPurchase is null) return;
+        var purchaseId = deleteConfirmPurchase.Id;
+        deleteConfirmPurchase = null;
+        purchaseError = null;
+
+        try
+        {
+            var success = await Api.DeleteAsync($"api/insumos/{Id}/purchases/{purchaseId}");
+            if (success)
+            {
+                purchaseSuccess = true;
+                await LoadData();
+            }
+            else
+            {
+                purchaseError = "Erro ao excluir compra.";
+            }
+        }
+        catch
+        {
+            purchaseError = "Erro ao excluir compra.";
+        }
+    }
+
+    public class InsumoDto
+    {
+        public string Id { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Unit { get; set; } = "KG";
+        public decimal CurrentStock { get; set; }
+        public decimal AverageCost { get; set; }
+        public decimal LastCost { get; set; }
+    }
+
+    public class PurchaseDto
+    {
+        public string Id { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal TotalCost { get; set; }
+        public decimal PreviousStock { get; set; }
+        public decimal NewStock { get; set; }
+        public decimal PreviousAvgCost { get; set; }
+        public decimal NewAvgCost { get; set; }
+        public string? Note { get; set; }
+    }
+
+    public class PurchaseModel
+    {
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+        public int PackageSize { get; set; } = 1;
+        public string? Note { get; set; }
+    }
+}

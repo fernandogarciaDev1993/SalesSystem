@@ -1,0 +1,72 @@
+@if (Visible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5); z-index: 9999;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header @HeaderClass">
+                    <h5 class="modal-title">
+                        <i class="bi @IconClass me-2"></i>@Title
+                    </h5>
+                    <button type="button" class="btn-close @CloseClass" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@Message</p>
+                </div>
+                <div class="modal-footer">
+                    @if (OnConfirm.HasDelegate)
+                    {
+                        <button type="button" class="btn btn-outline-secondary" @onclick="Close">Cancelar</button>
+                        <button type="button" class="btn @ButtonClass" @onclick="Confirm">@(ConfirmText ?? "Confirmar")</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn @ButtonClass" @onclick="Close">OK</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "Aviso";
+    [Parameter] public string Type { get; set; } = "error"; // error, success, warning
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string? ConfirmText { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private string HeaderClass => Type switch
+    {
+        "error" => "bg-danger text-white",
+        "success" => "bg-success text-white",
+        "warning" => "bg-warning text-dark",
+        _ => "bg-primary text-white"
+    };
+
+    private string IconClass => Type switch
+    {
+        "error" => "bi-exclamation-triangle-fill",
+        "success" => "bi-check-circle-fill",
+        "warning" => "bi-exclamation-circle-fill",
+        _ => "bi-info-circle-fill"
+    };
+
+    private string ButtonClass => Type switch
+    {
+        "error" => "btn-danger",
+        "success" => "btn-success",
+        "warning" => "btn-warning",
+        _ => "btn-primary"
+    };
+
+    private string CloseClass => Type switch
+    {
+        "warning" => "",
+        _ => "btn-close-white"
+    };
+
+    private async Task Close() => await OnClose.InvokeAsync();
+    private async Task Confirm() => await OnConfirm.InvokeAsync();
+}

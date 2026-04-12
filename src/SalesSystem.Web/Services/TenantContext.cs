@@ -1,2 +1,11 @@
-﻿// TODO: cole aqui o codigo gerado pelo Claude
-// Conteudo: TenantContext : ITenantContext
+namespace SalesSystem.Web.Services;
+
+public interface ITenantContext
+{
+    string TenantId { get; set; }
+}
+
+public class TenantContext : ITenantContext
+{
+    public string TenantId { get; set; } = "demo";
+}
