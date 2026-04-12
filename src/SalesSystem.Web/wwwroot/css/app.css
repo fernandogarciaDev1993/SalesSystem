@@ -204,3 +204,84 @@ a:hover {
 .text-primary {
     color: var(--primary) !important;
 }
+
+/* ===== RESPONSIVE / MOBILE ===== */
+
+/* Sidebar: hidden by default on mobile, slides in as overlay */
+@media (max-width: 767.98px) {
+    .sidebar-nav {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease !important;
+        width: 260px !important;
+    }
+    .sidebar-nav.show {
+        transform: translateX(0);
+    }
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 999;
+    }
+    .main-content {
+        margin-left: 0 !important;
+    }
+}
+
+/* Nav links: larger touch targets on mobile */
+@media (max-width: 767.98px) {
+    .sidebar-nav .nav-link {
+        padding: 0.75rem 1rem !important;
+        font-size: 1rem;
+    }
+}
+
+/* Top bar: compact on mobile */
+@media (max-width: 767.98px) {
+    .main-body {
+        padding: 1rem !important;
+    }
+}
+
+/* Tables: readable on mobile */
+@media (max-width: 767.98px) {
+    .table { font-size: 0.85rem; }
+    .table th, .table td { white-space: nowrap; padding: 0.4rem 0.5rem; }
+    .card-body { padding: 0.75rem; }
+    .card-header { padding: 0.5rem 0.75rem; }
+    h3 { font-size: 1.3rem; }
+}
+
+/* Forms: stack and full width on mobile */
+@media (max-width: 767.98px) {
+    .d-flex.gap-2,
+    .d-flex.gap-3 { flex-wrap: wrap; }
+    .btn { font-size: 0.9rem; }
+    .form-control, .form-select { font-size: 1rem; } /* prevent iOS zoom */
+}
+
+/* Modal: nearly full width on mobile */
+@media (max-width: 767.98px) {
+    .modal-dialog { margin: 0.5rem; max-width: calc(100% - 1rem); }
+}
+
+/* Login page: prevent overflow on small screens */
+@media (max-width: 767.98px) {
+    .login-wrapper {
+        padding: 1rem;
+    }
+}
+
+/* Ingredient search buttons: wrap on mobile */
+@media (max-width: 767.98px) {
+    .btn-sm { font-size: 0.8rem; }
+    .btn-group { flex-wrap: wrap; }
+    .list-group-item .btn-group { gap: 0.25rem; }
+}
+
+/* Production page: ensure row stacks properly */
+@media (max-width: 767.98px) {
+    .col-md-2, .col-md-3, .col-md-4, .col-md-5, .col-md-6, .col-md-10 {
+        margin-bottom: 0.5rem;
+    }
+}

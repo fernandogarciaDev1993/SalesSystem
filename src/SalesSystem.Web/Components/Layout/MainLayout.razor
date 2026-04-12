@@ -21,7 +21,12 @@ else if (_authChecked && !Api.IsAuthenticated)
 else if (_authChecked && Api.IsAuthenticated)
 {
     <div class="d-flex" style="min-height: 100vh;">
-        <nav class="d-flex flex-column sidebar-nav"
+        @if (_sidebarOpen)
+        {
+            <div class="sidebar-backdrop d-md-none" @onclick="CloseSidebar"></div>
+        }
+
+        <nav class="d-flex flex-column sidebar-nav @(_sidebarOpen ? "show" : "")"
              style="width: @(SidebarCollapsed ? "0" : "260px"); height: 100vh; background: linear-gradient(180deg, #F2EAE4 0%, #E8DDD5 100%); border-right: 1px solid #D4C8BE; transition: width 0.3s; overflow: hidden; position: fixed; z-index: 1000;">
             <div class="p-3 text-center" style="flex-shrink: 0; border-bottom: 1px solid #D4C8BE;">
                 <img src="images/logo.png" alt="Afeto no Pote" style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 4px;" />
@@ -32,22 +37,24 @@ else if (_authChecked && Api.IsAuthenticated)
             </div>
         </nav>
 
-        <div class="flex-grow-1" style="margin-left: @(SidebarCollapsed ? "0" : "250px"); transition: margin-left 0.3s;">
+        <div class="flex-grow-1 main-content" style="margin-left: @(SidebarCollapsed ? "0" : "250px"); transition: margin-left 0.3s;">
             <header class="bg-white border-bottom shadow-sm px-3 py-2 d-flex align-items-center justify-content-between" style="height: 56px; position: sticky; top: 0; z-index: 999;">
                 <button class="btn btn-sm btn-outline-secondary border-0" @onclick="ToggleSidebar">
                     <i class="bi bi-list fs-5"></i>
                 </button>
                 <div class="d-flex align-items-center gap-3">
                     <span class="text-muted small">
-                        <i class="bi bi-person-circle me-1"></i>@Api.UserName
+                        <i class="bi bi-person-circle me-1"></i>
+                        <span class="d-none d-md-inline">@Api.UserName</span>
                         <span class="badge bg-primary ms-1">@Api.UserRole</span>
                     </span>
                     <a href="/logout.html" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-box-arrow-right me-1"></i>Sair
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span class="d-none d-md-inline ms-1">Sair</span>
                     </a>
                 </div>
             </header>
-            <main class="p-4">@Body</main>
+            <main class="p-4 main-body">@Body</main>
         </div>
     </div>
 }
@@ -60,6 +67,7 @@ else
 
 @code {
     private bool SidebarCollapsed;
+    private bool _sidebarOpen; // mobile overlay state
     private bool _authChecked;
 
     private bool IsPublicPage
@@ -90,5 +98,16 @@ else
         }
     }
 
-    private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;
+    private void ToggleSidebar()
+    {
+        // On mobile, toggle the overlay sidebar; on desktop, collapse it
+        _sidebarOpen = !_sidebarOpen;
+        SidebarCollapsed = !SidebarCollapsed;
+    }
+
+    private void CloseSidebar()
+    {
+        _sidebarOpen = false;
+        SidebarCollapsed = true;
+    }
 }
