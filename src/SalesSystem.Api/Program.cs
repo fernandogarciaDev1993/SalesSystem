@@ -63,7 +63,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(opts =>
+{
+    opts.AddPolicy("GlobalAdmin", policy =>
+        policy.RequireClaim("permission", "admin.global"));
+});
 builder.Services.AddControllers()
     .AddJsonOptions(opts =>
     {
@@ -179,7 +183,7 @@ public class DataSeeder : IHostedService
                     Email = "admin@admin.com",
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
                     Role = SalesSystem.Domain.Entities.UserRole.Admin,
-                    Permissions = SalesSystem.Domain.Entities.Permission.DefaultFor(SalesSystem.Domain.Entities.UserRole.Admin),
+                    Permissions = [..SalesSystem.Domain.Entities.Permission.DefaultFor(SalesSystem.Domain.Entities.UserRole.Admin), SalesSystem.Domain.Entities.Permission.AdminGlobal],
                     TenantId = tenant.Id,
                     IsActive = true
                 };

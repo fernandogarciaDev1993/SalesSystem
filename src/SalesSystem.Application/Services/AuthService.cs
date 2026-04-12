@@ -44,6 +44,7 @@ public class AuthResponse
     public List<string> Permissions { get; set; } = [];
     public string TenantId { get; set; } = string.Empty;
     public string TenantSubdomain { get; set; } = string.Empty;
+    public TenantUiConfigDto? UiConfig { get; set; }
 }
 
 public class AuthService : IAuthService

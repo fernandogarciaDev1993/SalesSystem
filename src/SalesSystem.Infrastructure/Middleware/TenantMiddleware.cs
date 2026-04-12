@@ -8,7 +8,7 @@ public class TenantMiddleware
     private readonly RequestDelegate _next;
     public TenantMiddleware(RequestDelegate next) => _next = next;
 
-    private static readonly string[] _skipPaths = ["/openapi", "/scalar", "/api/tenants", "/api/auth", "/api/setup"];
+    private static readonly string[] _skipPaths = ["/openapi", "/scalar", "/api/tenants", "/api/auth", "/api/setup", "/api/admin"];
 
     public async Task InvokeAsync(HttpContext context, ITenantService tenantService)
     {

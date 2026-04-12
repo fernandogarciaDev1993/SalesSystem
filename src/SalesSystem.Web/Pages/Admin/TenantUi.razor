@@ -1,0 +1,259 @@
+@page "/admin/tenants/{Id}/ui"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Aparencia do Tenant - SalesSystem</PageTitle>
+
+@if (!Api.IsGlobalAdmin)
+{
+    <div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
+        <div class="text-center">
+            <i class="bi bi-shield-lock fs-1 text-danger"></i>
+            <h4 class="mt-3">Acesso Negado</h4>
+            <p class="text-muted">Voce nao tem permissao para acessar esta pagina.</p>
+            <a href="/" class="btn btn-primary">Voltar ao Inicio</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="d-flex align-items-center mb-4">
+        <a href="/admin/tenants" class="btn btn-sm btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h3 class="mb-0">Aparencia do Tenant</h3>
+    </div>
+
+    <AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+    <AlertModal Visible="successMessage is not null" Message="@(successMessage ?? "")" Title="Sucesso" Type="success" OnClose="() => successMessage = null" />
+
+    @if (loadingData)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h5 class="mb-3">Cores</h5>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Cor Primaria</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.PrimaryColor" />
+                                    <input type="text" class="form-control" @bind="model.PrimaryColor" />
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Primaria Escura</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.PrimaryDark" />
+                                    <input type="text" class="form-control" @bind="model.PrimaryDark" />
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Primaria Clara</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.PrimaryLight" />
+                                    <input type="text" class="form-control" @bind="model.PrimaryLight" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Cor de Destaque</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.AccentColor" />
+                                    <input type="text" class="form-control" @bind="model.AccentColor" />
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Fundo Sidebar</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.SidebarBg" />
+                                    <input type="text" class="form-control" @bind="model.SidebarBg" />
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Texto Sidebar</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.SidebarText" />
+                                    <input type="text" class="form-control" @bind="model.SidebarText" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Fundo Topbar</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.TopbarBg" />
+                                    <input type="text" class="form-control" @bind="model.TopbarBg" />
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Fundo Body</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="model.BodyBg" />
+                                    <input type="text" class="form-control" @bind="model.BodyBg" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <h5 class="mt-4 mb-3">Identidade</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">URL do Logo</label>
+                                <input type="text" class="form-control" @bind="model.LogoUrl" placeholder="https://..." />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nome da Empresa</label>
+                                <input type="text" class="form-control" @bind="model.CompanyDisplayName" />
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Fonte (Font Family)</label>
+                                <input type="text" class="form-control" @bind="model.FontFamily" placeholder="Inter, sans-serif" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Border Radius</label>
+                                <input type="text" class="form-control" @bind="model.BorderRadius" placeholder="0.5rem" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="darkMode" @bind="model.DarkMode" />
+                                <label class="form-check-label" for="darkMode">Modo Escuro</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">CSS Customizado</label>
+                            <textarea class="form-control" rows="4" @bind="model.CustomCss" placeholder="/* CSS customizado */"></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary" disabled="@saving" @onclick="HandleSave">
+                                @if (saving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                Salvar
+                            </button>
+                            <a href="/admin/tenants" class="btn btn-outline-secondary">Cancelar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Pre-visualizacao</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="border rounded p-3 mb-3" style="background: @(string.IsNullOrEmpty(model.SidebarBg) ? "#F2EAE4" : model.SidebarBg);">
+                            <small class="fw-bold" style="color: @(string.IsNullOrEmpty(model.SidebarText) ? "#5C4033" : model.SidebarText);">Sidebar</small>
+                            <div class="mt-2" style="color: @(string.IsNullOrEmpty(model.SidebarText) ? "#5C4033" : model.SidebarText);">
+                                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                            </div>
+                            <div class="mt-1" style="color: @(string.IsNullOrEmpty(model.SidebarText) ? "#5C4033" : model.SidebarText);">
+                                <i class="bi bi-box-seam me-1"></i> Produtos
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mb-3">
+                            <div class="rounded p-2 text-center text-white flex-fill" style="background: @(string.IsNullOrEmpty(model.PrimaryColor) ? "#8C7568" : model.PrimaryColor);">
+                                Primary
+                            </div>
+                            <div class="rounded p-2 text-center text-white flex-fill" style="background: @(string.IsNullOrEmpty(model.PrimaryDark) ? "#5C4033" : model.PrimaryDark);">
+                                Dark
+                            </div>
+                            <div class="rounded p-2 text-center flex-fill" style="background: @(string.IsNullOrEmpty(model.PrimaryLight) ? "#F2EAE4" : model.PrimaryLight);">
+                                Light
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <div class="rounded p-2 text-center text-white flex-fill" style="background: @(string.IsNullOrEmpty(model.AccentColor) ? "#D4A574" : model.AccentColor);">
+                                Accent
+                            </div>
+                            <div class="rounded p-2 text-center flex-fill border" style="background: @(string.IsNullOrEmpty(model.BodyBg) ? "#FAFAFA" : model.BodyBg);">
+                                Body
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private UiConfigModel model = new();
+    private bool saving;
+    private bool loadingData;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            if (!Api.IsGlobalAdmin)
+            {
+                StateHasChanged();
+                return;
+            }
+
+            loadingData = true;
+            StateHasChanged();
+            try
+            {
+                var config = await Api.GetAsync<UiConfigModel>($"api/admin/tenants/{Id}/ui");
+                if (config is not null) model = config;
+            }
+            catch { /* first time, use defaults */ }
+            finally { loadingData = false; }
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        saving = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            var success = await Api.PutAsync($"api/admin/tenants/{Id}/ui", model);
+            if (success) successMessage = "Aparencia salva com sucesso.";
+            else errorMessage = "Erro ao salvar aparencia.";
+        }
+        catch { errorMessage = "Erro ao salvar aparencia."; }
+        finally { saving = false; }
+    }
+
+    public class UiConfigModel
+    {
+        public string? LogoUrl { get; set; }
+        public string? CompanyDisplayName { get; set; }
+        public string PrimaryColor { get; set; } = "";
+        public string PrimaryDark { get; set; } = "";
+        public string PrimaryLight { get; set; } = "";
+        public string AccentColor { get; set; } = "";
+        public string SidebarBg { get; set; } = "";
+        public string SidebarText { get; set; } = "";
+        public string TopbarBg { get; set; } = "";
+        public string BodyBg { get; set; } = "";
+        public string FontFamily { get; set; } = "";
+        public string BorderRadius { get; set; } = "";
+        public bool DarkMode { get; set; }
+        public string? CustomCss { get; set; }
+    }
+}

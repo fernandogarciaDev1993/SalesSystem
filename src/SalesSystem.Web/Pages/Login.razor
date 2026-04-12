@@ -18,6 +18,10 @@
 
                 <EditForm Model="model" OnValidSubmit="HandleLogin" FormName="loginForm">
                     <div class="mb-3">
+                        <label class="form-label">Tenant</label>
+                        <InputText @bind-Value="model.TenantSubdomain" class="form-control" placeholder="demo" />
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Email</label>
                         <InputText @bind-Value="model.Email" class="form-control" placeholder="admin@admin.com" />
                     </div>

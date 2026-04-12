@@ -49,6 +49,7 @@ public static class Permission
     public const string FinancialWrite = "financial.write";
     public const string ConfigWrite    = "config.write";
     public const string UsersWrite     = "users.write";
+    public const string AdminGlobal    = "admin.global";
 
     public static List<string> DefaultFor(UserRole role) => role switch
     {

@@ -27,7 +27,7 @@ public class TenantsController : ControllerBase
     }
 
     [HttpPost]
-    [AllowAnonymous]
+    [Authorize(Policy = "GlobalAdmin")]
     public async Task<IActionResult> Create([FromBody] Tenant tenant)
     {
         var created = await _tenantService.CreateAsync(tenant);
@@ -35,7 +35,7 @@ public class TenantsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [AllowAnonymous]
+    [Authorize(Policy = "GlobalAdmin")]
     public async Task<IActionResult> Update(string id, [FromBody] Tenant tenant)
     {
         tenant.Id = id;

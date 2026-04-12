@@ -23,6 +23,9 @@ public class ApiService
     public string? UserRole { get; private set; }
     public string? TenantId { get; private set; }
     public string? TenantSubdomain { get; private set; }
+    public List<string> Permissions { get; private set; } = [];
+    public bool IsGlobalAdmin => Permissions.Contains("admin.global");
+    public UiConfigDto? CurrentTheme { get; set; }
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_token);
 
@@ -38,6 +41,18 @@ public class ApiService
             UserRole = await _js.InvokeAsync<string?>("authStorage.get", "auth_userRole");
             TenantId = await _js.InvokeAsync<string?>("authStorage.get", "auth_tenantId");
             TenantSubdomain = await _js.InvokeAsync<string?>("authStorage.get", "auth_tenantSubdomain");
+
+            var permissionsJson = await _js.InvokeAsync<string?>("authStorage.get", "auth_permissions");
+            if (!string.IsNullOrEmpty(permissionsJson))
+            {
+                Permissions = JsonSerializer.Deserialize<List<string>>(permissionsJson, _jsonOpts) ?? [];
+            }
+
+            var themeJson = await _js.InvokeAsync<string?>("authStorage.get", "auth_theme");
+            if (!string.IsNullOrEmpty(themeJson))
+            {
+                CurrentTheme = JsonSerializer.Deserialize<UiConfigDto>(themeJson, _jsonOpts);
+            }
 
             if (!string.IsNullOrEmpty(_token))
             {
@@ -77,6 +92,8 @@ public class ApiService
             UserRole = auth.Role;
             TenantId = auth.TenantId;
             TenantSubdomain = auth.TenantSubdomain;
+            Permissions = auth.Permissions ?? [];
+            CurrentTheme = auth.UiConfig;
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
             // Persist in sessionStorage
@@ -85,6 +102,9 @@ public class ApiService
             await _js.InvokeVoidAsync("authStorage.set", "auth_userRole", UserRole);
             await _js.InvokeVoidAsync("authStorage.set", "auth_tenantId", TenantId);
             await _js.InvokeVoidAsync("authStorage.set", "auth_tenantSubdomain", TenantSubdomain);
+            await _js.InvokeVoidAsync("authStorage.set", "auth_permissions", JsonSerializer.Serialize(Permissions));
+            if (CurrentTheme is not null)
+                await _js.InvokeVoidAsync("authStorage.set", "auth_theme", JsonSerializer.Serialize(CurrentTheme));
 
             return new LoginResult { Success = true };
         }
@@ -101,6 +121,8 @@ public class ApiService
         UserRole = null;
         TenantId = null;
         TenantSubdomain = null;
+        Permissions = [];
+        CurrentTheme = null;
         _http.DefaultRequestHeaders.Authorization = null;
 
         try
@@ -110,6 +132,9 @@ public class ApiService
             await _js.InvokeVoidAsync("authStorage.remove", "auth_userRole");
             await _js.InvokeVoidAsync("authStorage.remove", "auth_tenantId");
             await _js.InvokeVoidAsync("authStorage.remove", "auth_tenantSubdomain");
+            await _js.InvokeVoidAsync("authStorage.remove", "auth_permissions");
+            await _js.InvokeVoidAsync("authStorage.remove", "auth_theme");
+            await _js.InvokeAsync<object>("themeManager.clear");
         }
         catch { }
     }
@@ -253,6 +278,25 @@ public class AuthResponseDto
     public List<string> Permissions { get; set; } = [];
     public string TenantId { get; set; } = "";
     public string TenantSubdomain { get; set; } = "";
+    public UiConfigDto? UiConfig { get; set; }
+}
+
+public class UiConfigDto
+{
+    public string? LogoUrl { get; set; }
+    public string? CompanyDisplayName { get; set; }
+    public string PrimaryColor { get; set; } = "";
+    public string PrimaryDark { get; set; } = "";
+    public string PrimaryLight { get; set; } = "";
+    public string AccentColor { get; set; } = "";
+    public string SidebarBg { get; set; } = "";
+    public string SidebarText { get; set; } = "";
+    public string TopbarBg { get; set; } = "";
+    public string BodyBg { get; set; } = "";
+    public string FontFamily { get; set; } = "";
+    public string BorderRadius { get; set; } = "";
+    public bool DarkMode { get; set; }
+    public string? CustomCss { get; set; }
 }
 
 public class ErrorResponse

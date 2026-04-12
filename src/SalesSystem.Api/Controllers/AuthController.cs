@@ -36,6 +36,7 @@ public class AuthController : ControllerBase
 
         result.Data!.TenantId = tenant.Id;
         result.Data!.TenantSubdomain = tenant.Subdomain;
+        result.Data!.UiConfig = TenantUiConfigDto.FromEntity(tenant.UiConfig);
         return Ok(result.Data);
     }
 
