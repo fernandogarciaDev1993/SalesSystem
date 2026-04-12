@@ -159,6 +159,21 @@ public class DataSeeder : IHostedService
             var userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
 
             // Create default tenant if it doesn't exist
+            // Fix any existing tenants with broken passwords
+            var allTenants = await tenantRepo.GetAllAsync();
+            foreach (var t in allTenants)
+            {
+                var adminUser = await userRepo.GetByEmailAsync("admin@admin.com", t.Id);
+                if (adminUser is not null && !adminUser.PasswordHash.StartsWith("$2"))
+                {
+                    adminUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Aa010203@");
+                    if (!adminUser.Permissions.Contains(SalesSystem.Domain.Entities.Permission.AdminGlobal))
+                        adminUser.Permissions.Add(SalesSystem.Domain.Entities.Permission.AdminGlobal);
+                    await userRepo.UpdateAsync(adminUser);
+                    Console.WriteLine($"[DataSeeder] Fixed password hash for admin in tenant '{t.Subdomain}'");
+                }
+            }
+
             var tenant = await tenantRepo.GetBySubdomainAsync("demo");
             if (tenant is null)
             {
@@ -181,7 +196,7 @@ public class DataSeeder : IHostedService
                 {
                     Name = "Administrador",
                     Email = "admin@admin.com",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Aa010203@"),
                     Role = SalesSystem.Domain.Entities.UserRole.Admin,
                     Permissions = [..SalesSystem.Domain.Entities.Permission.DefaultFor(SalesSystem.Domain.Entities.UserRole.Admin), SalesSystem.Domain.Entities.Permission.AdminGlobal],
                     TenantId = tenant.Id,
@@ -190,11 +205,25 @@ public class DataSeeder : IHostedService
                 await userRepo.InsertAsync(user);
                 Console.WriteLine($"[DataSeeder] Created default admin user 'admin@admin.com'");
             }
-            else if (!user.Permissions.Contains(SalesSystem.Domain.Entities.Permission.AdminGlobal))
+            else
             {
-                user.Permissions.Add(SalesSystem.Domain.Entities.Permission.AdminGlobal);
-                await userRepo.UpdateAsync(user);
-                Console.WriteLine($"[DataSeeder] Added adminGlobal permission to existing admin user");
+                bool changed = false;
+                if (!user.Permissions.Contains(SalesSystem.Domain.Entities.Permission.AdminGlobal))
+                {
+                    user.Permissions.Add(SalesSystem.Domain.Entities.Permission.AdminGlobal);
+                    changed = true;
+                }
+                // Update password to Aa010203@
+                if (!BCrypt.Net.BCrypt.Verify("Aa010203@", user.PasswordHash))
+                {
+                    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Aa010203@");
+                    changed = true;
+                }
+                if (changed)
+                {
+                    await userRepo.UpdateAsync(user);
+                    Console.WriteLine($"[DataSeeder] Updated admin user credentials");
+                }
             }
         }
         catch (Exception ex)
