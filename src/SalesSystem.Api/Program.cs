@@ -173,7 +173,7 @@ public class DataSeeder : IHostedService
                 Console.WriteLine($"[DataSeeder] Created default tenant 'demo' with Id={tenant.Id}");
             }
 
-            // Create default admin user if it doesn't exist
+            // Create or update default admin user
             var user = await userRepo.GetByEmailAsync("admin@admin.com", tenant.Id);
             if (user is null)
             {
@@ -189,6 +189,12 @@ public class DataSeeder : IHostedService
                 };
                 await userRepo.InsertAsync(user);
                 Console.WriteLine($"[DataSeeder] Created default admin user 'admin@admin.com'");
+            }
+            else if (!user.Permissions.Contains(SalesSystem.Domain.Entities.Permission.AdminGlobal))
+            {
+                user.Permissions.Add(SalesSystem.Domain.Entities.Permission.AdminGlobal);
+                await userRepo.UpdateAsync(user);
+                Console.WriteLine($"[DataSeeder] Added adminGlobal permission to existing admin user");
             }
         }
         catch (Exception ex)
