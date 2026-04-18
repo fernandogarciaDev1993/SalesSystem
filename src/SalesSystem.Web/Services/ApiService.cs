@@ -26,6 +26,7 @@ public class ApiService
     public List<string> Permissions { get; private set; } = [];
     public bool IsGlobalAdmin => Permissions.Contains("admin.global");
     public UiConfigDto? CurrentTheme { get; set; }
+    public VocabularyDto? CurrentVocabulary { get; set; }
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_token);
 
@@ -52,6 +53,12 @@ public class ApiService
             if (!string.IsNullOrEmpty(themeJson))
             {
                 CurrentTheme = JsonSerializer.Deserialize<UiConfigDto>(themeJson, _jsonOpts);
+            }
+
+            var vocabJson = await _js.InvokeAsync<string?>("authStorage.get", "auth_vocabulary");
+            if (!string.IsNullOrEmpty(vocabJson))
+            {
+                CurrentVocabulary = JsonSerializer.Deserialize<VocabularyDto>(vocabJson, _jsonOpts);
             }
 
             if (!string.IsNullOrEmpty(_token))
@@ -94,6 +101,7 @@ public class ApiService
             TenantSubdomain = auth.TenantSubdomain;
             Permissions = auth.Permissions ?? [];
             CurrentTheme = auth.UiConfig;
+            CurrentVocabulary = auth.Vocabulary;
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
             // Persist in sessionStorage
@@ -105,6 +113,8 @@ public class ApiService
             await _js.InvokeVoidAsync("authStorage.set", "auth_permissions", JsonSerializer.Serialize(Permissions));
             if (CurrentTheme is not null)
                 await _js.InvokeVoidAsync("authStorage.set", "auth_theme", JsonSerializer.Serialize(CurrentTheme));
+            if (CurrentVocabulary is not null)
+                await _js.InvokeVoidAsync("authStorage.set", "auth_vocabulary", JsonSerializer.Serialize(CurrentVocabulary));
 
             return new LoginResult { Success = true };
         }
@@ -123,6 +133,7 @@ public class ApiService
         TenantSubdomain = null;
         Permissions = [];
         CurrentTheme = null;
+        CurrentVocabulary = null;
         _http.DefaultRequestHeaders.Authorization = null;
 
         try
@@ -134,6 +145,7 @@ public class ApiService
             await _js.InvokeVoidAsync("authStorage.remove", "auth_tenantSubdomain");
             await _js.InvokeVoidAsync("authStorage.remove", "auth_permissions");
             await _js.InvokeVoidAsync("authStorage.remove", "auth_theme");
+            await _js.InvokeVoidAsync("authStorage.remove", "auth_vocabulary");
             await _js.InvokeAsync<object>("themeManager.clear");
         }
         catch { }
@@ -195,6 +207,19 @@ public class ApiService
         SetTenantHeader();
         var response = await _http.PutAsJsonAsync(url, data);
         return response.IsSuccessStatusCode;
+    }
+
+    public async Task<RawResponse> PostRawAsync<TRequest>(string url, TRequest data)
+    {
+        await EnsureInitializedAsync();
+        SetTenantHeader();
+        var response = await _http.PostAsJsonAsync(url, data);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await GetErrorAsync(response);
+            return new RawResponse { IsSuccess = false, Error = error ?? $"HTTP {(int)response.StatusCode}" };
+        }
+        return new RawResponse { IsSuccess = true };
     }
 
     public async Task<(TResponse? Data, string? Error)> PutWithErrorAsync<TRequest, TResponse>(string url, TRequest data)
@@ -279,6 +304,22 @@ public class AuthResponseDto
     public string TenantId { get; set; } = "";
     public string TenantSubdomain { get; set; } = "";
     public UiConfigDto? UiConfig { get; set; }
+    public VocabularyDto? Vocabulary { get; set; }
+}
+
+public class VocabularyDto
+{
+    public string PresetId { get; set; } = "confeitaria";
+    public Dictionary<string, VocabularyTermDto> Terms { get; set; } = [];
+}
+
+public class VocabularyTermDto
+{
+    public string Singular           { get; set; } = "";
+    public string Plural             { get; set; } = "";
+    public string ArticleSingular    { get; set; } = "a";
+    public string ArticlePlural      { get; set; } = "as";
+    public string IndefiniteSingular { get; set; } = "uma";
 }
 
 public class UiConfigDto
@@ -297,6 +338,12 @@ public class UiConfigDto
     public string BorderRadius { get; set; } = "";
     public bool DarkMode { get; set; }
     public string? CustomCss { get; set; }
+}
+
+public class RawResponse
+{
+    public bool IsSuccess { get; set; }
+    public string? Error { get; set; }
 }
 
 public class ErrorResponse

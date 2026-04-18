@@ -11,6 +11,7 @@ public interface ITenantService
     Task<Tenant> CreateAsync(Tenant tenant);
     Task UpdateAsync(Tenant tenant);
     Task UpdateUiConfigAsync(string tenantId, TenantUiConfig config, string savedBy);
+    Task UpdateVocabularyAsync(string tenantId, TenantVocabulary vocabulary);
 }
 
 public interface ITenantContext
@@ -149,6 +150,16 @@ public class TenantService : ITenantService
         tenant.UiConfig.DarkMode           = config.DarkMode;
         tenant.UiConfig.CustomCss          = config.CustomCss;
 
+        tenant.UpdatedAt = DateTime.UtcNow;
+        await _repo.UpdateAsync(tenant);
+    }
+
+    public async Task UpdateVocabularyAsync(string tenantId, TenantVocabulary vocabulary)
+    {
+        var tenant = await _repo.GetByIdAsync(tenantId)
+            ?? throw new InvalidOperationException("Tenant not found.");
+
+        tenant.Vocabulary = vocabulary;
         tenant.UpdatedAt = DateTime.UtcNow;
         await _repo.UpdateAsync(tenant);
     }

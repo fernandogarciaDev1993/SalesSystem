@@ -1,0 +1,302 @@
+@page "/admin/tenants/{Id}/vocabulary"
+@rendermode InteractiveServer
+@inject ApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Vocabulário do Tenant - SalesSystem</PageTitle>
+
+@if (!Api.IsGlobalAdmin)
+{
+    <div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
+        <div class="text-center">
+            <i class="bi bi-shield-lock fs-1 text-danger"></i>
+            <h4 class="mt-3">Acesso Negado</h4>
+            <p class="text-muted">Você não tem permissão para acessar esta página.</p>
+            <a href="/" class="btn btn-primary">Voltar ao Início</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="d-flex align-items-center mb-4">
+        <a href="/admin/tenants" class="btn btn-sm btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h3 class="mb-0">Vocabulário do Tenant</h3>
+    </div>
+
+    <AlertModal Visible="errorMessage is not null" Message="@(errorMessage ?? "")" Title="Erro" Type="error" OnClose="() => errorMessage = null" />
+    <AlertModal Visible="successMessage is not null" Message="@(successMessage ?? "")" Title="Sucesso" Type="success" OnClose="() => successMessage = null" />
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="mb-3">Vertical do negócio</h5>
+                <p class="text-muted small">
+                    Escolha um preset para popular os termos padrão. Depois você pode sobrescrever termos individuais.
+                </p>
+                <div class="row g-2">
+                    @foreach (var preset in availablePresets)
+                    {
+                        <div class="col-md-4">
+                            <button type="button"
+                                    class="btn w-100 text-start @(selectedPresetId == preset.Id ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick="() => SelectPreset(preset.Id)">
+                                <div class="fw-semibold">@PresetDisplayName(preset.Id)</div>
+                                <small class="d-block text-muted">
+                                    Ex: @preset.Terms["recipe"].Singular, @preset.Terms["product"].Singular, @preset.Terms["order"].Singular
+                                </small>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                <span>Termos</span>
+                <small class="text-muted">Edite para sobrescrever o preset. Deixe idêntico ao preset para manter padrão.</small>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Chave</th>
+                                <th>Singular</th>
+                                <th>Plural</th>
+                                <th style="width: 110px;">Artigo (sing.)</th>
+                                <th style="width: 130px;">Indef. (sing.)</th>
+                                <th style="width: 90px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var key in labelKeys)
+                            {
+                                var term = GetTerm(key);
+                                var isOverride = overrides.ContainsKey(key);
+                                <tr class="@(isOverride ? "table-warning" : "")">
+                                    <td><code class="small">@key</code></td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               value="@term.Singular"
+                                               @oninput="@(e => UpdateTerm(key, "singular", e.Value?.ToString() ?? string.Empty))" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               value="@term.Plural"
+                                               @oninput="@(e => UpdateTerm(key, "plural", e.Value?.ToString() ?? string.Empty))" />
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm"
+                                                value="@term.ArticleSingular"
+                                                @onchange="@(e => UpdateArticle(key, e.Value?.ToString() ?? "a"))">
+                                            <option value="a">a</option>
+                                            <option value="o">o</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               value="@term.IndefiniteSingular"
+                                               @oninput="@(e => UpdateTerm(key, "indefinite", e.Value?.ToString() ?? string.Empty))" />
+                                    </td>
+                                    <td class="text-center">
+                                        @if (isOverride)
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary" title="Restaurar do preset" @onclick="() => ResetTerm(key)">
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" @onclick="Save" disabled="@saving">
+                @if (saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                Salvar
+            </button>
+            <a href="/admin/tenants" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+
+    private bool loading = true;
+    private bool saving;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private string selectedPresetId = "confeitaria";
+    private Dictionary<string, VocabularyTermDto> overrides = [];
+    private Dictionary<string, Dictionary<string, VocabularyTermDto>> presetTermsById = [];
+    private List<PresetDto> availablePresets = [];
+    private List<string> labelKeys = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Api.EnsureInitializedAsync();
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            var presetsResponse = await Api.GetAsync<PresetsResponse>("api/admin/vocabulary/presets");
+            if (presetsResponse is null)
+            {
+                errorMessage = "Erro ao carregar presets.";
+                return;
+            }
+            availablePresets = presetsResponse.Presets;
+            presetTermsById = availablePresets.ToDictionary(p => p.Id, p => p.Terms);
+
+            var current = await Api.GetAsync<VocabularyAdminResponse>($"api/admin/tenants/{Id}/vocabulary");
+            if (current is null)
+            {
+                errorMessage = "Erro ao carregar vocabulário do tenant.";
+                return;
+            }
+
+            selectedPresetId = current.PresetId;
+            overrides = current.Overrides ?? [];
+            labelKeys = presetTermsById[selectedPresetId].Keys.OrderBy(k => k).ToList();
+        }
+        catch
+        {
+            errorMessage = "Erro ao carregar dados.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void SelectPreset(string presetId)
+    {
+        selectedPresetId = presetId;
+        // Switching preset clears overrides since they were relative to a different baseline.
+        overrides = [];
+        labelKeys = presetTermsById[selectedPresetId].Keys.OrderBy(k => k).ToList();
+    }
+
+    private VocabularyTermDto GetTerm(string key)
+    {
+        if (overrides.TryGetValue(key, out var o)) return o;
+        return presetTermsById[selectedPresetId].TryGetValue(key, out var p) ? p : new VocabularyTermDto();
+    }
+
+    private void UpdateTerm(string key, string field, string value)
+    {
+        var current = GetTerm(key);
+        var copy = new VocabularyTermDto
+        {
+            Singular           = current.Singular,
+            Plural             = current.Plural,
+            ArticleSingular    = current.ArticleSingular,
+            ArticlePlural      = current.ArticlePlural,
+            IndefiniteSingular = current.IndefiniteSingular,
+        };
+        switch (field)
+        {
+            case "singular":   copy.Singular = value; break;
+            case "plural":     copy.Plural = value; break;
+            case "indefinite": copy.IndefiniteSingular = value; break;
+        }
+        overrides[key] = copy;
+    }
+
+    private void UpdateArticle(string key, string value)
+    {
+        var current = GetTerm(key);
+        overrides[key] = new VocabularyTermDto
+        {
+            Singular           = current.Singular,
+            Plural             = current.Plural,
+            ArticleSingular    = value,
+            ArticlePlural      = value == "o" ? "os" : "as",
+            IndefiniteSingular = value == "o" ? "um" : "uma",
+        };
+    }
+
+    private void ResetTerm(string key) => overrides.Remove(key);
+
+    private async Task Save()
+    {
+        saving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var payload = new VocabularyAdminResponse
+            {
+                PresetId = selectedPresetId,
+                Overrides = overrides,
+            };
+            var ok = await Api.PutAsync($"api/admin/tenants/{Id}/vocabulary", payload);
+            if (ok)
+                successMessage = "Vocabulário salvo. Faça logout/login para ver as mudanças em toda a UI.";
+            else
+                errorMessage = "Erro ao salvar vocabulário.";
+        }
+        catch
+        {
+            errorMessage = "Erro ao salvar vocabulário.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string PresetDisplayName(string id) => id switch
+    {
+        "confeitaria" => "Confeitaria",
+        "restaurante" => "Restaurante",
+        "grafica"     => "Gráfica",
+        "brindes"     => "Brindes",
+        "generico"    => "Genérico",
+        _             => id,
+    };
+
+    public class PresetsResponse
+    {
+        public string DefaultPresetId { get; set; } = "";
+        public List<PresetDto> Presets { get; set; } = [];
+    }
+
+    public class PresetDto
+    {
+        public string Id { get; set; } = "";
+        public Dictionary<string, VocabularyTermDto> Terms { get; set; } = [];
+    }
+
+    public class VocabularyAdminResponse
+    {
+        public string PresetId { get; set; } = "";
+        public Dictionary<string, VocabularyTermDto> Overrides { get; set; } = [];
+        public object? Resolved { get; set; }
+    }
+}

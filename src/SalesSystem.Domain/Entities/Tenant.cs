@@ -15,6 +15,22 @@ public class Tenant : BaseEntity
     [BsonElement("uiConfig")]  public TenantUiConfig UiConfig  { get; set; } = new();
     [BsonElement("modules")]   public List<string>   Modules   { get; set; } = ["produtos","clientes","estoque","pedidos","financeiro"];
     [BsonElement("settings")]  public TenantSettings Settings  { get; set; } = new();
+    [BsonElement("vocabulary")] public TenantVocabulary Vocabulary { get; set; } = new();
+}
+
+public class TenantVocabulary
+{
+    [BsonElement("presetId")] public string                             PresetId  { get; set; } = "confeitaria";
+    [BsonElement("overrides")] public Dictionary<string, VocabularyTermDoc> Overrides { get; set; } = [];
+}
+
+public class VocabularyTermDoc
+{
+    [BsonElement("singular")]           public string Singular           { get; set; } = string.Empty;
+    [BsonElement("plural")]             public string Plural             { get; set; } = string.Empty;
+    [BsonElement("articleSingular")]    public string ArticleSingular    { get; set; } = "a";
+    [BsonElement("articlePlural")]      public string ArticlePlural      { get; set; } = "as";
+    [BsonElement("indefiniteSingular")] public string IndefiniteSingular { get; set; } = "uma";
 }
 
 public class TenantUiConfig

@@ -15,6 +15,9 @@ builder.Services.AddScoped<HttpClient>(sp =>
 // ApiService (scoped per circuit, persists token in sessionStorage)
 builder.Services.AddScoped<ApiService>();
 
+// LabelService: resolves tenant-configurable vocabulary (e.g. "Receita" vs "Ficha Técnica")
+builder.Services.AddScoped<ILabelService, LabelService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

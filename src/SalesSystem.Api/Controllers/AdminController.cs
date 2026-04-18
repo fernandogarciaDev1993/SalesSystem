@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SalesSystem.Application.Services;
+using SalesSystem.Application.Vocabularies;
 using SalesSystem.Domain.Entities;
 
 namespace SalesSystem.Api.Controllers;
@@ -59,6 +60,63 @@ public class AdminController : ControllerBase
         return Ok(new { message = "UI config updated." });
     }
 
+    // GET /api/admin/tenants/{id}/vocabulary
+    [HttpGet("tenants/{id}/vocabulary")]
+    public async Task<IActionResult> GetTenantVocabulary(string id)
+    {
+        var tenant = await _tenantService.GetByIdAsync(id);
+        if (tenant is null) return NotFound();
+
+        return Ok(new VocabularyAdminDto
+        {
+            PresetId = string.IsNullOrWhiteSpace(tenant.Vocabulary.PresetId)
+                ? VocabularyPresets.DefaultPresetId
+                : tenant.Vocabulary.PresetId,
+            Overrides = tenant.Vocabulary.Overrides.ToDictionary(
+                kv => kv.Key,
+                kv => VocabularyTermDto.FromDoc(kv.Value)),
+            Resolved = VocabularyResolver.Resolve(tenant.Vocabulary),
+        });
+    }
+
+    // PUT /api/admin/tenants/{id}/vocabulary
+    [HttpPut("tenants/{id}/vocabulary")]
+    public async Task<IActionResult> UpdateTenantVocabulary(string id, [FromBody] VocabularyAdminDto body)
+    {
+        var vocabulary = new TenantVocabulary
+        {
+            PresetId = string.IsNullOrWhiteSpace(body.PresetId) ? VocabularyPresets.DefaultPresetId : body.PresetId,
+            Overrides = body.Overrides.ToDictionary(
+                kv => kv.Key,
+                kv => new VocabularyTermDoc
+                {
+                    Singular           = kv.Value.Singular,
+                    Plural             = kv.Value.Plural,
+                    ArticleSingular    = kv.Value.ArticleSingular,
+                    ArticlePlural      = kv.Value.ArticlePlural,
+                    IndefiniteSingular = kv.Value.IndefiniteSingular,
+                }),
+        };
+
+        await _tenantService.UpdateVocabularyAsync(id, vocabulary);
+        return Ok(new { message = "Vocabulary updated.", resolved = VocabularyResolver.Resolve(vocabulary) });
+    }
+
+    // GET /api/admin/vocabulary/presets
+    [HttpGet("vocabulary/presets")]
+    [AllowAnonymous]
+    public IActionResult GetVocabularyPresets()
+    {
+        var presets = VocabularyPresetIds.All.Select(id => new
+        {
+            id,
+            terms = VocabularyPresets.Presets[id].ToDictionary(
+                kv => kv.Key,
+                kv => VocabularyTermDto.FromTerm(kv.Value))
+        });
+        return Ok(new { defaultPresetId = VocabularyPresets.DefaultPresetId, presets });
+    }
+
     // GET /api/admin/tenants/{id}/users
     [HttpGet("tenants/{id}/users")]
     public async Task<IActionResult> ListUsers(string id)
@@ -103,4 +161,11 @@ public class CreateUserRequest
     public string Password { get; set; } = string.Empty;
     public UserRole Role { get; set; } = UserRole.Vendedor;
     public List<string> Permissions { get; set; } = [];
+}
+
+public class VocabularyAdminDto
+{
+    public string PresetId { get; set; } = VocabularyPresets.DefaultPresetId;
+    public Dictionary<string, VocabularyTermDto> Overrides { get; set; } = [];
+    public TenantVocabularyDto? Resolved { get; set; }
 }

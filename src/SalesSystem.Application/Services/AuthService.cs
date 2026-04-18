@@ -45,6 +45,7 @@ public class AuthResponse
     public string TenantId { get; set; } = string.Empty;
     public string TenantSubdomain { get; set; } = string.Empty;
     public TenantUiConfigDto? UiConfig { get; set; }
+    public TenantVocabularyDto? Vocabulary { get; set; }
 }
 
 public class AuthService : IAuthService

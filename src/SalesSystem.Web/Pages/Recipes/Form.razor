@@ -2,15 +2,16 @@
 @page "/recipes/{Id}/edit"
 @rendermode InteractiveServer
 @inject ApiService Api
+@inject ILabelService Labels
 @inject NavigationManager Nav
 
-<PageTitle>@(IsEdit ? "Editar" : "Nova") Receita - SalesSystem</PageTitle>
+<PageTitle>@(IsEdit ? Labels.EditLabel(LabelKeys.Recipe) : Labels.NewLabel(LabelKeys.Recipe)) - SalesSystem</PageTitle>
 
 <div class="d-flex align-items-center mb-4">
     <a href="/recipes" class="btn btn-sm btn-outline-secondary me-3">
         <i class="bi bi-arrow-left"></i>
     </a>
-    <h3 class="mb-0">@(IsEdit ? "Editar" : "Nova") Receita</h3>
+    <h3 class="mb-0">@(IsEdit ? Labels.EditLabel(LabelKeys.Recipe) : Labels.NewLabel(LabelKeys.Recipe))</h3>
 </div>
 
 @if (loading)
@@ -25,7 +26,7 @@ else
     <AlertModal Visible="successMessage is not null" Message="@(successMessage ?? "")" Title="Sucesso" Type="success" OnClose="() => successMessage = null" />
 
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white fw-semibold">Dados da Receita</div>
+        <div class="card-header bg-white fw-semibold">Dados @(Labels.ArticleSingular(LabelKeys.Recipe) == "o" ? "do" : "da") @Labels.Singular(LabelKeys.Recipe)</div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -33,14 +34,14 @@ else
                     <input type="text" class="form-control" @bind="model.Name" />
                 </div>
                 <div class="col-md-3 mb-3">
-                    <label class="form-label">Rendimento (unidades)</label>
+                    <label class="form-label">@Labels.Singular(LabelKeys.Yield) (unidades)</label>
                     <input type="number" class="form-control" @bind="model.YieldQuantity" min="1" />
                 </div>
                 <div class="col-md-3 mb-3 d-flex align-items-end">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="isInsumo" @bind="model.IsInsumo" />
                         <label class="form-check-label" for="isInsumo">
-                            Usar como insumo em outras receitas
+                            Usar como @Labels.Singular(LabelKeys.Insumo).ToLower() em outras @Labels.Plural(LabelKeys.Recipe).ToLower()
                         </label>
                     </div>
                 </div>
@@ -49,9 +50,9 @@ else
             {
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Insumo de destino (estoque da producao)</label>
+                        <label class="form-label">@Labels.Singular(LabelKeys.Insumo) de destino (estoque da produção)</label>
                         <select class="form-select" @bind="model.OutputInsumoId">
-                            <option value="">(Auto-criar novo insumo ao salvar)</option>
+                            <option value="">(Auto-criar @Labels.IndefiniteSingular(LabelKeys.Insumo) @Labels.Singular(LabelKeys.Insumo).ToLower() ao salvar)</option>
                             @if (availableInsumos is not null)
                             {
                                 @foreach (var i in availableInsumos)
@@ -61,7 +62,7 @@ else
                             }
                         </select>
                         <small class="text-muted">
-                            Selecione um insumo existente ou deixe em branco para criar automaticamente.
+                            Selecione @Labels.IndefiniteSingular(LabelKeys.Insumo) @Labels.Singular(LabelKeys.Insumo).ToLower() existente ou deixe em branco para criar automaticamente.
                         </small>
                     </div>
                 </div>
@@ -86,10 +87,10 @@ else
     </div>
 
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white fw-semibold">Adicionar Ingrediente</div>
+        <div class="card-header bg-white fw-semibold">Adicionar @Labels.Singular(LabelKeys.Ingredient)</div>
         <div class="card-body">
             <div class="mb-3">
-                <label class="form-label">Buscar ingrediente</label>
+                <label class="form-label">Buscar @Labels.Singular(LabelKeys.Ingredient).ToLower()</label>
                 <input type="text" class="form-control" @bind="ingredientSearch" @bind:event="oninput"
                        placeholder="Digite para buscar..." />
             </div>
@@ -103,7 +104,7 @@ else
                 <div class="border rounded p-2 mb-3" style="max-height: 300px; overflow-y: auto;">
                     @if (filteredInsumos?.Any() == true)
                     {
-                        <h6 class="text-muted small mb-2"><i class="bi bi-basket me-1"></i>INSUMOS</h6>
+                        <h6 class="text-muted small mb-2"><i class="bi bi-basket me-1"></i>@Labels.Plural(LabelKeys.Insumo).ToUpper()</h6>
                         @foreach (var item in filteredInsumos)
                         {
                             <button class="btn btn-sm btn-outline-primary me-1 mb-1"
@@ -115,7 +116,7 @@ else
 
                     @if (filteredRecipes?.Any() == true)
                     {
-                        <h6 class="text-muted small mb-2 mt-2"><i class="bi bi-journal-text me-1"></i>RECEITAS</h6>
+                        <h6 class="text-muted small mb-2 mt-2"><i class="bi bi-journal-text me-1"></i>@Labels.Plural(LabelKeys.Recipe).ToUpper()</h6>
                         @foreach (var item in filteredRecipes)
                         {
                             <button class="btn btn-sm btn-outline-success me-1 mb-1"
@@ -127,7 +128,7 @@ else
 
                     @if (filteredInsumos?.Any() != true && filteredRecipes?.Any() != true)
                     {
-                        <p class="text-muted small mb-0">Nenhum ingrediente encontrado.</p>
+                        <p class="text-muted small mb-0">@(Labels.ArticleSingular(LabelKeys.Ingredient) == "o" ? "Nenhum" : "Nenhuma") @Labels.Singular(LabelKeys.Ingredient).ToLower() encontrado.</p>
                     }
                 </div>
             }
@@ -136,11 +137,11 @@ else
             {
                 <div class="row">
                     <div class="col-md-5 mb-3">
-                        <label class="form-label">Ingrediente selecionado</label>
+                        <label class="form-label">@Labels.Singular(LabelKeys.Ingredient) selecionado</label>
                         <div class="form-control bg-light">
                             @selectedIngredient.Name
                             <span class="badge @(selectedIngredient.Type == "recipe" ? "bg-info" : "bg-secondary") ms-1">
-                                @(selectedIngredient.Type == "recipe" ? "Receita" : "Insumo")
+                                @(selectedIngredient.Type == "recipe" ? Labels.Singular(LabelKeys.Recipe) : Labels.Singular(LabelKeys.Insumo))
                             </span>
                         </div>
                     </div>
@@ -163,13 +164,13 @@ else
     </div>
 
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white fw-semibold">Ingredientes da Receita</div>
+        <div class="card-header bg-white fw-semibold">@Labels.Plural(LabelKeys.Ingredient) @(Labels.ArticleSingular(LabelKeys.Recipe) == "o" ? "do" : "da") @Labels.Singular(LabelKeys.Recipe)</div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Ingrediente</th>
+                            <th>@Labels.Singular(LabelKeys.Ingredient)</th>
                             <th>Codigo</th>
                             <th>Tipo</th>
                             <th class="text-end">Qtde</th>
@@ -189,7 +190,7 @@ else
                                     <td><code>@item.InsumoCode</code></td>
                                     <td>
                                         <span class="badge @(item.IsRecipe ? "bg-info" : "bg-secondary")">
-                                            @(item.IsRecipe ? "Receita" : "Insumo")
+                                            @(item.IsRecipe ? Labels.Singular(LabelKeys.Recipe) : Labels.Singular(LabelKeys.Insumo))
                                         </span>
                                     </td>
                                     <td class="text-end">@item.Quantity.ToString("N3")</td>
@@ -204,7 +205,7 @@ else
                                 </tr>
                             }
                             <tr class="table-warning fw-semibold">
-                                <td colspan="6" class="text-end">Custo Total da Receita:</td>
+                                <td colspan="6" class="text-end">Custo Total @(Labels.ArticleSingular(LabelKeys.Recipe) == "o" ? "do" : "da") @Labels.Singular(LabelKeys.Recipe):</td>
                                 <td class="text-end">@TotalCost.ToString("C", ptBR)</td>
                                 <td></td>
                             </tr>
@@ -217,7 +218,7 @@ else
                         else
                         {
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">Nenhum ingrediente adicionado.</td>
+                                <td colspan="8" class="text-center text-muted py-4">@(Labels.ArticleSingular(LabelKeys.Ingredient) == "o" ? "Nenhum" : "Nenhuma") @Labels.Singular(LabelKeys.Ingredient).ToLower() adicionado.</td>
                             </tr>
                         }
                     </tbody>
@@ -226,10 +227,10 @@ else
         </div>
     </div>
 
-    <!-- MODO DE PREPARO -->
+    <!-- PROCESSO / MODO DE PREPARO -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white fw-semibold">
-            <i class="bi bi-list-ol me-1"></i>Modo de Preparo
+            <i class="bi bi-list-ol me-1"></i>@Labels.Singular(LabelKeys.Process)
         </div>
         <div class="card-body">
             <div class="row mb-3">
@@ -274,7 +275,7 @@ else
             }
             else
             {
-                <p class="text-muted small mb-0">Nenhum passo adicionado. Descreva como preparar esta receita.</p>
+                <p class="text-muted small mb-0">Nenhum passo adicionado. Descreva o processo @(Labels.ArticleSingular(LabelKeys.Recipe) == "o" ? "deste" : "desta") @Labels.Singular(LabelKeys.Recipe).ToLower().</p>
             }
         </div>
     </div>
@@ -416,7 +417,7 @@ else
                 }
                 else
                 {
-                    errorMessage = "Receita nao encontrada.";
+                    errorMessage = $"{Labels.Singular(LabelKeys.Recipe)} não encontrada.";
                 }
             }
         }
@@ -437,7 +438,7 @@ else
 
         if (selectedIngredient is null)
         {
-            errorMessage = "Selecione um ingrediente.";
+            errorMessage = $"Selecione {Labels.IndefiniteSingular(LabelKeys.Ingredient)} {Labels.Singular(LabelKeys.Ingredient).ToLower()}.";
             return;
         }
         if (selectedQuantity <= 0)
@@ -453,14 +454,14 @@ else
         var existing = ingredients.FirstOrDefault(i => i.InsumoId == id && i.IsRecipe == (type == "recipe"));
         if (existing is not null)
         {
-            errorMessage = "Este ingrediente ja esta na receita. Remova-o primeiro para adicionar novamente.";
+            errorMessage = $"Este {Labels.Singular(LabelKeys.Ingredient).ToLower()} já está {(Labels.ArticleSingular(LabelKeys.Recipe) == "o" ? "no" : "na")} {Labels.Singular(LabelKeys.Recipe).ToLower()}. Remova-o primeiro para adicionar novamente.";
             return;
         }
 
         // Prevent adding self as ingredient
         if (IsEdit && type == "recipe" && id == Id)
         {
-            errorMessage = "Uma receita nao pode usar a si mesma como ingrediente.";
+            errorMessage = $"{Labels.IndefiniteSingular(LabelKeys.Recipe).Substring(0,1).ToUpper()}{Labels.IndefiniteSingular(LabelKeys.Recipe).Substring(1)} {Labels.Singular(LabelKeys.Recipe).ToLower()} não pode usar a si mesma como {Labels.Singular(LabelKeys.Ingredient).ToLower()}.";
             return;
         }
 
@@ -521,7 +522,7 @@ else
                 if (data is not null)
                     Nav.NavigateTo("/recipes");
                 else
-                    errorMessage = error ?? "Erro ao salvar receita.";
+                    errorMessage = error ?? $"Erro ao salvar {Labels.Singular(LabelKeys.Recipe).ToLower()}.";
             }
             else
             {
@@ -529,12 +530,12 @@ else
                 if (data is not null)
                     Nav.NavigateTo("/recipes");
                 else
-                    errorMessage = error ?? "Erro ao cadastrar receita.";
+                    errorMessage = error ?? $"Erro ao cadastrar {Labels.Singular(LabelKeys.Recipe).ToLower()}.";
             }
         }
         catch
         {
-            errorMessage = "Erro ao salvar receita.";
+            errorMessage = $"Erro ao salvar {Labels.Singular(LabelKeys.Recipe).ToLower()}.";
         }
         finally
         {
