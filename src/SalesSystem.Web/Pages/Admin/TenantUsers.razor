@@ -181,8 +181,9 @@ else
         successMessage = null;
         try
         {
-            var result = await Api.PostAsync<NewUserModel, object>($"api/admin/tenants/{Id}/users", newUser);
-            if (result is not null)
+            await Api.EnsureInitializedAsync();
+            var response = await Api.PostRawAsync($"api/admin/tenants/{Id}/users", newUser);
+            if (response.IsSuccess)
             {
                 successMessage = "Usuario criado com sucesso.";
                 newUser = new();
@@ -191,10 +192,10 @@ else
             }
             else
             {
-                errorMessage = "Erro ao criar usuario.";
+                errorMessage = response.Error ?? "Erro ao criar usuario.";
             }
         }
-        catch { errorMessage = "Erro ao criar usuario."; }
+        catch (Exception ex) { errorMessage = $"Erro: {ex.Message}"; }
         finally { savingUser = false; }
     }
 
